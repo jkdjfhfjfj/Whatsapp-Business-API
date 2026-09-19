@@ -1,0 +1,51 @@
+import crypto from 'node:crypto';
+import bcrypt from 'bcryptjs';
+import { db } from '../db/client.js';
+import { businesses, users, aiSettings, wabaSettings } from '../db/schema.js';
+import { eq } from 'drizzle-orm';
+
+// Authentication has been removed: anyone with the URL gets in. There is no login to establish
+// "which business/user this request belongs to" anymore, so every request is attached to one
+// auto-created default business/user instead. This keeps the rest of the codebase (which is
+// still written in terms of req.session.businessId / userId throughout) unchanged — see
+// auth/middleware.ts, which now self-heals every request onto this tenant instead of rejecting
+// unauthenticated ones.
+const DEFAULT_BUSINESS_NAME = process.env.DEFAULT_BUSINESS_NAME ?? 'My Business';
+
+let cached: { businessId: string; userId: string } | null = null;
+
+export async function ensureDefaultTenant(): Promise<{ businessId: string; userId: string }> {
+  if (cached) return cached;
+
+  const [existingBusiness] = await db.select().from(businesses).limit(1);
+  let business = existingBusiness;
+
+  if (!business) {
+    [business] = await db.insert(businesses).values({ name: DEFAULT_BUSINESS_NAME }).returning();
+    // Seed default AI + WABA settings rows, same as signup used to, so Settings has something
+    // to edit immediately.
+    await db.insert(aiSettings).values({ businessId: business.id });
+    await db.insert(wabaSettings).values({ businessId: business.id });
+  }
+
+  let [user] = await db.select().from(users).where(eq(users.businessId, business.id)).limit(1);
+  if (!user) {
+    // A password hash is still required by the column, but it's unusable (random, never
+    // surfaced anywhere) since there's no login form to check it against.
+    const passwordHash = await bcrypt.hash(crypto.randomUUID(), 10);
+    [user] = await db
+      .insert(users)
+      .values({ name: 'Team', email: `${business.id}@no-auth.local`, passwordHash, role: 'owner', businessId: business.id })
+      .returning();
+  }
+
+  cached = { businessId: business.id, userId: user.id };
+  return cached;
+}
+
+export function getDefaultTenant(): { businessId: string; userId: string } {
+  if (!cached) {
+    throw new Error('Default tenant not initialized yet — ensureDefaultTenant() must be awaited before the server starts accepting requests.');
+  }
+  return cached;
+}

@@ -1,0 +1,25 @@
+services:
+  - type: web
+    name: whatsapp-business-api
+    runtime: node
+    buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm run render:build && pnpm --filter @workspace/api-server run db:push
+    startCommand: pnpm run render:start
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        sync: false
+      - key: SESSION_SECRET
+        sync: false
+      - key: WHATSAPP_VERIFY_TOKEN
+        sync: false
+      - key: DEFAULT_BUSINESS_NAME
+        value: WhatsApp Support
+      - key: MEDIA_STORAGE_DIR
+        value: /var/data/media
+    disk:
+      name: whatsapp-media
+      mountPath: /var/data
+      sizeGB: 1

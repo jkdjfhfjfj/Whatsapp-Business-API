@@ -1,15 +1,21 @@
-# [Project name]
+# WhatsApp Business API
+
+This app gives a support team a mobile-friendly WhatsApp inbox with webhook-connected messaging, media handling, AI replies, and WABA settings.
 
 _Replace the heading above with the project's name, and this line with one sentence describing what this app does for users._
 
 ## Run & Operate
 
 - `pnpm --filter @workspace/api-server run dev` — run the API server (port 5000)
+- `pnpm --filter @workspace/whatsapp-platform run dev` — run the Android-style support workspace
 - `pnpm run typecheck` — full typecheck across all packages
 - `pnpm run build` — typecheck + build all packages
+- `pnpm run render:build` — build the frontend into the API server for a single Render service
+- `pnpm run render:start` — start the Render-compatible single service
 - `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
-- `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
-- Required env: `DATABASE_URL` — Postgres connection string
+- `pnpm --filter @workspace/api-server run db:push` — push the imported WhatsApp schema to the current `DATABASE_URL`
+- Required env: `DATABASE_URL` — Neon/Postgres connection string
+- Webhook env: `WHATSAPP_VERIFY_TOKEN` — the exact token entered in Meta's callback settings
 
 ## Stack
 
@@ -22,15 +28,24 @@ _Replace the heading above with the project's name, and this line with one sente
 
 ## Where things live
 
-_Populate as you build — short repo map plus pointers to the source-of-truth file for DB schema, API contracts, theme files, etc._
+- `artifacts/whatsapp-platform/src/` — React/Vite support workspace
+- `artifacts/api-server/src/` — Express API, WhatsApp webhook, media, bot, and database services
+- `render.yaml` — one-service Render build/start configuration
+- `lib/db/src/schema/` — shared workspace schema; the imported WhatsApp schema lives with the API server because it is also deployable independently
 
 ## Architecture decisions
 
-_Populate as you build — non-obvious choices a reader couldn't infer from the code (3-5 bullets)._
+- The Render deployment is one Node service: the frontend is built first and copied into the API server's `public` folder.
+- Meta webhook verification accepts `WHATSAPP_VERIFY_TOKEN` before checking the database so verification is not blocked by tenant initialization or migrations.
+- The API service keeps `/webhook` and `/ws` outside `/api`; both paths are explicitly routed in the artifact proxy.
 
 ## Product
 
-_Describe the high-level user-facing capabilities of this app once they exist._
+- Mobile-first inbox for WhatsApp conversations
+- Text, document, image, video, and audio handling
+- AI reply settings and human takeover
+- WABA connection and webhook settings
+- Tags, notes, quick replies, agents, and dashboard metrics
 
 ## User preferences
 
@@ -38,7 +53,9 @@ _Populate as you build — explicit user instructions worth remembering across s
 
 ## Gotchas
 
-_Populate as you build — sharp edges, "always run X before Y" rules._
+- Meta callback URL must be `https://<render-host>/webhook` with no spaces.
+- Set `WHATSAPP_VERIFY_TOKEN` to the same value entered in Meta; `access123` is valid only if both sides use it.
+- After changing the Neon schema, run the server's Drizzle push command against the same `DATABASE_URL` used by Render.
 
 ## Pointers
 
