@@ -9,23 +9,45 @@ const WS_URL = configuredApiUrl
 
 export function useRealtime(businessId: string | undefined, onEvent: (event: string, payload: unknown) => void) {
   const socketRef = useRef<WebSocket | null>(null);
+  const onEventRef = useRef(onEvent);
+
+  useEffect(() => {
+    onEventRef.current = onEvent;
+  }, [onEvent]);
 
   useEffect(() => {
     if (!businessId) return;
-    const ws = new WebSocket(`${WS_URL}/ws`);
-    socketRef.current = ws;
 
-    ws.onopen = () => ws.send(JSON.stringify({ type: 'subscribe', businessId }));
-    ws.onmessage = (msg) => {
-      try {
-        const { event, payload } = JSON.parse(msg.data);
-        onEvent(event, payload);
-      } catch {
-        // ignore malformed messages
-      }
+    let stopped = false;
+    let reconnectTimer: ReturnType<typeof setTimeout> | undefined;
+    let ws: WebSocket | null = null;
+
+    const connect = () => {
+      if (stopped) return;
+      ws = new WebSocket(`${WS_URL}/ws`);
+      socketRef.current = ws;
+
+      ws.onopen = () => ws?.send(JSON.stringify({ type: 'subscribe', businessId }));
+      ws.onmessage = (msg) => {
+        try {
+          const { event, payload } = JSON.parse(msg.data);
+          onEventRef.current(event, payload);
+        } catch {
+          // Ignore malformed messages instead of taking down the live connection.
+        }
+      };
+      ws.onclose = () => {
+        if (!stopped) reconnectTimer = setTimeout(connect, 1500);
+      };
+      ws.onerror = () => ws?.close();
     };
 
-    return () => ws.close();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    connect();
+    return () => {
+      stopped = true;
+      if (reconnectTimer) clearTimeout(reconnectTimer);
+      ws?.close();
+      socketRef.current = null;
+    };
   }, [businessId]);
 }

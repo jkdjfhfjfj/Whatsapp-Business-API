@@ -33,24 +33,39 @@ export default function Inbox({ businessId }: { businessId: string }) {
   useEffect(() => { refreshList(); }, [refreshList]);
   useEffect(() => { api.listAgents().then(setAgents).catch((err) => toast(err.message, 'error')); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  function refreshDetail() {
-    if (selectedId) api.getConversation(selectedId).then(setDetail).catch((err) => toast(err.message, 'error'));
-  }
+  const refreshDetail = useCallback((conversationId = selectedId) => {
+    if (!conversationId) return Promise.resolve();
+    return api.getConversation(conversationId)
+      .then((nextDetail) => setDetail(nextDetail))
+      .catch((err) => toast(err.message, 'error'));
+  }, [selectedId, toast]);
 
   useEffect(() => {
     if (!selectedId) { setDetail(null); return; }
-    refreshDetail();
+    refreshDetail(selectedId);
     api.markConversationRead(selectedId).catch((err) => toast(err.message, 'error'));
     setMobileView('chat');
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedId]);
+  }, [selectedId, refreshDetail, toast]);
 
-  useRealtime(businessId, (event, payload: any) => {
+  const handleRealtime = useCallback((event: string, payload: any) => {
     if (event === 'conversation:update' || event === 'message:new' || event === 'message:status') {
       refreshList();
-      if (selectedId && (payload?.conversationId === selectedId || payload?.id === selectedId)) refreshDetail();
+      const changedConversationId = payload?.conversationId ?? payload?.conversation?.id ?? payload?.id;
+      if (selectedId && changedConversationId === selectedId) refreshDetail(selectedId);
     }
-  });
+  }, [refreshDetail, refreshList, selectedId]);
+
+  useRealtime(businessId, handleRealtime);
+
+  function selectConversation(id: string) {
+    setMobileView('chat');
+    if (id === selectedId) {
+      // Clicking the already-selected row must reopen/refetch the chat after mobile back navigation.
+      refreshDetail(id);
+      return;
+    }
+    setSelectedId(id);
+  }
 
   // Every mutation below follows the same shape: a small loading flag, a success toast, and —
   // critically — a caught error that also surfaces as a toast. Previously several of these had
@@ -119,7 +134,7 @@ export default function Inbox({ businessId }: { businessId: string }) {
             <button key={f} className={filter === f ? 'active' : ''} onClick={() => setFilter(f)}>{f || 'All'}</button>
           ))}
         </div>
-        {loadingList ? <ConversationListSkeleton /> : <ConversationList rows={rows} selectedId={selectedId} onSelect={setSelectedId} />}
+        {loadingList ? <ConversationListSkeleton /> : <ConversationList rows={rows} selectedId={selectedId} onSelect={selectConversation} />}
       </aside>
 
       <section className="inbox-center">
