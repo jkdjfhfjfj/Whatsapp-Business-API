@@ -190,7 +190,7 @@ main { min-height: 0; flex: 1; overflow: hidden; }
 .avatar { display: flex; align-items: center; justify-content: center; width: 43px; height: 43px; flex: 0 0 43px; border-radius: 14px; color: var(--wa-ink); background: var(--wa-lime); font-weight: 800; }
 .conversation-meta { min-width: 0; flex: 1; }
 .conversation-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.conversation-top .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: 800; }
+.conversation-top .name { display: flex; align-items: center; gap: 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: 800; }
 .timestamp { flex: 0 0 auto; color: var(--muted); font-family: var(--font-mono); font-size: 9px; }
 .conversation-bottom { display: flex; align-items: center; gap: 5px; min-width: 0; margin-top: 7px; }
 .conversation-bottom::before { content: attr(data-preview); overflow: hidden; flex: 1; color: var(--muted); text-overflow: ellipsis; white-space: nowrap; font-size: 11px; }
@@ -202,6 +202,11 @@ main { min-height: 0; flex: 1; overflow: hidden; }
 .chat-window { min-height: 0; display: flex; flex: 1; flex-direction: column; overflow: hidden; }
 .chat-header { min-height: 70px; display: flex; align-items: center; gap: 11px; padding: 12px 18px; color: var(--text); background: var(--panel); border-bottom: 1px solid var(--border); }
 .chat-header .subtext { margin: 2px 0 0; font-size: 11px; }
+.contact-presence { display: flex; align-items: center; gap: 5px; }
+.presence-phone { overflow: hidden; margin-left: 3px; text-overflow: ellipsis; white-space: nowrap; }
+.presence-dot { display: inline-block; width: 7px; height: 7px; flex: 0 0 7px; border-radius: 50%; background: var(--muted); }
+.presence-dot.online { background: var(--wa-green); box-shadow: 0 0 0 3px rgba(24,184,117,.14); }
+.presence-dot.offline { background: #9aa8a3; }
 .chat-header .details-btn { margin-left: auto; }
 .details-close { display: none; }
 .back-btn { display: none; }

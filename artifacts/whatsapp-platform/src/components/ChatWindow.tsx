@@ -58,6 +58,7 @@ function StatusTick({ status }: { status: string }) {
 export default function ChatWindow({ contact, messages, onBack, onDetails }: { contact: any; messages: any[]; onBack?: () => void; onDetails?: () => void }) {
   const displayName = contact?.name ?? contact?.waName ?? contact?.waId ?? '?';
   const bottomRef = useRef<HTMLDivElement>(null);
+  const online = isRecentlyActive(contact?.lastContactAt);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
@@ -70,7 +71,11 @@ export default function ChatWindow({ contact, messages, onBack, onDetails }: { c
         <Avatar name={displayName} />
         <div>
           <div className="name">{displayName}</div>
-          <div className="subtext">{contact?.waId}</div>
+           <div className="subtext contact-presence">
+             <span className={`presence-dot ${online ? 'online' : 'offline'}`} />
+             <span>{online ? 'Online' : 'Offline'}</span>
+             <span className="presence-phone">{contact?.waId}</span>
+           </div>
         </div>
         {onDetails && <button className="icon-btn details-btn" onClick={onDetails} aria-label="Open customer details"><PanelRight size={19} /></button>}
       </div>
@@ -100,4 +105,10 @@ export default function ChatWindow({ contact, messages, onBack, onDetails }: { c
       </div>
     </div>
   );
+}
+
+function isRecentlyActive(value: unknown) {
+  if (!value) return false;
+  const timestamp = new Date(String(value)).getTime();
+  return Number.isFinite(timestamp) && Date.now() - timestamp < 5 * 60 * 1000;
 }

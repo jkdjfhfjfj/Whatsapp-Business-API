@@ -108,8 +108,11 @@ async function handleInboundMessage(businessId: string, wa: Awaited<ReturnType<t
       .insert(contacts)
       .values({ businessId, waId, waName, lastContactAt: new Date() })
       .returning();
-  } else if (waName && waName !== contact.waName) {
-    await db.update(contacts).set({ waName, lastContactAt: new Date() }).where(eq(contacts.id, contact.id));
+  } else {
+    await db.update(contacts).set({
+      ...(waName && waName !== contact.waName ? { waName } : {}),
+      lastContactAt: new Date(),
+    }).where(eq(contacts.id, contact.id));
   }
 
   let [conversation] = await db
@@ -195,9 +198,20 @@ function extractContent(incoming: any): { type: string; body: Record<string, unk
 }
 
 async function handleStatusNotification(businessId: string, parsed: any) {
-  const statusId = parsed?.notification?.message_id ?? parsed?.message_id;
-  const newStatus = parsed?.notification?.status ?? parsed?.status;
+  // whatsappcloudapi_wrapper exposes the raw status as `notificationMessage` and
+  // keeps Meta's message id in `id`. Older code looked for `notification.message_id`,
+  // so every webhook was acknowledged but no outbound row was ever updated.
+  const notification = parsed?.notificationMessage ?? parsed?.notification;
+  const statusId = notification?.id ?? notification?.message_id ?? parsed?.message_id;
+  const newStatus = normalizeMessageStatus(notification?.status ?? parsed?.status);
   if (!statusId || !newStatus) return;
+
+  const [current] = await db
+    .select()
+    .from(messages)
+    .where(and(eq(messages.whatsappMessageId, statusId), eq(messages.businessId, businessId)))
+    .limit(1);
+  if (!current || statusRank(newStatus) < statusRank(current.status)) return;
 
   const [updated] = await db
     .update(messages)
@@ -206,4 +220,14 @@ async function handleStatusNotification(businessId: string, parsed: any) {
     .returning();
 
   if (updated) broadcastToBusiness(businessId, 'message:status', updated);
+}
+
+function normalizeMessageStatus(status: unknown): string | undefined {
+  return status === 'sent' || status === 'delivered' || status === 'read' || status === 'failed'
+    ? status
+    : undefined;
+}
+
+function statusRank(status: string) {
+  return { sent: 1, delivered: 2, read: 3, failed: 4 }[status] ?? 0;
 }

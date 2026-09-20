@@ -66,8 +66,15 @@ messagesRouter.post('/text', async (req, res) => {
   if (!wa) return res.status(400).json({ error: 'WhatsApp is not configured for this business yet.' });
 
   try {
-    await wa.sendText(ctx.contact.waId, parsed.data.message);
-    const saved = await recordOutbound(businessId, ctx.conversation.id, req.tenant!.userId, 'text', { text: parsed.data.message });
+    const response = await wa.sendText(ctx.contact.waId, parsed.data.message);
+    const saved = await recordOutbound(
+      businessId,
+      ctx.conversation.id,
+      req.tenant!.userId,
+      'text',
+      { text: parsed.data.message },
+      extractWhatsAppMessageId(response),
+    );
     res.json(saved);
   } catch (err) {
     res.status(400).json({ error: formatWhatsAppError(err) });
@@ -92,11 +99,11 @@ messagesRouter.post('/buttons', async (req, res) => {
   if (!wa) return res.status(400).json({ error: 'WhatsApp is not configured for this business yet.' });
 
   try {
-    await wa.sendSimpleButtons(ctx.contact.waId, parsed.data.message, parsed.data.buttons);
+    const response = await wa.sendSimpleButtons(ctx.contact.waId, parsed.data.message, parsed.data.buttons);
     const saved = await recordOutbound(businessId, ctx.conversation.id, req.tenant!.userId, 'interactive_buttons', {
       message: parsed.data.message,
       buttons: parsed.data.buttons,
-    });
+    }, extractWhatsAppMessageId(response));
     res.json(saved);
   } catch (err) {
     res.status(400).json({ error: formatWhatsAppError(err) });
@@ -127,8 +134,15 @@ messagesRouter.post('/list', async (req, res) => {
 
   try {
     const { conversationId, ...opts } = parsed.data;
-    await wa.sendRadioButtons(ctx.contact.waId, opts);
-    const saved = await recordOutbound(businessId, ctx.conversation.id, req.tenant!.userId, 'interactive_list', opts);
+    const response = await wa.sendRadioButtons(ctx.contact.waId, opts);
+    const saved = await recordOutbound(
+      businessId,
+      ctx.conversation.id,
+      req.tenant!.userId,
+      'interactive_list',
+      opts,
+      extractWhatsAppMessageId(response),
+    );
     res.json(saved);
   } catch (err) {
     res.status(400).json({ error: formatWhatsAppError(err) });

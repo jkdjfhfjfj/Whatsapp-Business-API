@@ -34,6 +34,7 @@ export default function ConversationList({
     <ul className="conversation-list">
       {rows.map(({ conversation, contact, tagNames }) => {
         const displayName = contact.name ?? contact.waName ?? contact.waId;
+        const online = isRecentlyActive(contact.lastContactAt);
         return (
           <li
             key={conversation.id}
@@ -44,7 +45,7 @@ export default function ConversationList({
             <Avatar name={displayName} />
             <div className="conversation-meta">
               <div className="conversation-top">
-                <span className="name">{displayName}</span>
+                <span className="name"><span className={`presence-dot ${online ? 'online' : 'offline'}`} />{displayName}</span>
                 <span className="timestamp">
                   {conversation.updatedAt ? new Date(conversation.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
                 </span>
@@ -61,4 +62,10 @@ export default function ConversationList({
       })}
     </ul>
   );
+}
+
+function isRecentlyActive(value: unknown) {
+  if (!value) return false;
+  const timestamp = new Date(String(value)).getTime();
+  return Number.isFinite(timestamp) && Date.now() - timestamp < 5 * 60 * 1000;
 }
