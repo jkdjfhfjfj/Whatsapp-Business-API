@@ -366,6 +366,11 @@ function QuickRepliesSettings() {
   const [replies, setReplies] = useState<any[]>([]);
   const [shortcut, setShortcut] = useState('');
   const [message, setMessage] = useState('');
+  const [messageType, setMessageType] = useState<'text' | 'buttons' | 'list'>('text');
+  const [headerText, setHeaderText] = useState('');
+  const [footerText, setFooterText] = useState('');
+  const [buttonLines, setButtonLines] = useState('');
+  const [rowLines, setRowLines] = useState('');
   const [busy, setBusy] = useState(false);
 
   function refresh() { api.listQuickReplies().then(setReplies).catch((err) => toast(err.message, 'error')); }
@@ -375,9 +380,46 @@ function QuickRepliesSettings() {
     if (!shortcut.trim() || !message.trim()) return;
     setBusy(true);
     try {
-      await api.createQuickReply(shortcut.trim().startsWith('/') ? shortcut.trim() : `/${shortcut.trim()}`, message.trim());
+      const payload: Record<string, unknown> = {};
+      if (messageType === 'buttons') {
+        const buttons = buttonLines.split('\n').map((line) => {
+          const [title, id] = line.split('|').map((part) => part.trim());
+          return { title, id };
+        }).filter((button) => button.title && button.id);
+        if (buttons.length < 1 || buttons.length > 3) {
+          toast('Add 1-3 buttons, one per line as Title | id.', 'error');
+          return;
+        }
+        payload.buttons = buttons;
+        if (headerText.trim()) payload.headerText = headerText.trim();
+        if (footerText.trim()) payload.footerText = footerText.trim();
+      } else if (messageType === 'list') {
+        const rows = rowLines.split('\n').map((line) => {
+          const [title, description, id] = line.split('|').map((part) => part.trim());
+          return { title, description, id };
+        }).filter((row) => row.title && row.description && row.id);
+        if (rows.length < 1 || rows.length > 10) {
+          toast('Add 1-10 rows, one per line as Title | description | id.', 'error');
+          return;
+        }
+        payload.headerText = headerText.trim();
+        payload.footerText = footerText.trim();
+        payload.actionTitle = 'View options';
+        payload.listOfSections = [{ title: 'Options', rows }];
+      }
+      await api.createQuickReply({
+        shortcut: shortcut.trim().startsWith('/') ? shortcut.trim() : `/${shortcut.trim()}`,
+        message: message.trim(),
+        messageType,
+        payload,
+      });
       setShortcut('');
       setMessage('');
+      setMessageType('text');
+      setHeaderText('');
+      setFooterText('');
+      setButtonLines('');
+      setRowLines('');
       refresh();
       toast('Quick reply added.', 'success');
     } catch (err) {
@@ -400,15 +442,40 @@ function QuickRepliesSettings() {
   return (
     <div className="settings-card">
       <h2>Quick Replies</h2>
-      <p className="subtext">Agents type <code>/shortcut</code> in the composer to insert these instantly.</p>
+      <p className="subtext">Agents type <code>/shortcut</code> in the composer to insert text, button, or list messages.</p>
       <label>Shortcut<input value={shortcut} onChange={(e) => setShortcut(e.target.value)} placeholder="hello" /></label>
-      <label>Message<textarea rows={2} value={message} onChange={(e) => setMessage(e.target.value)} placeholder="Hello! How can we help you today?" /></label>
+      <label>Message type
+        <select value={messageType} onChange={(e) => setMessageType(e.target.value as 'text' | 'buttons' | 'list')}>
+          <option value="text">Text</option>
+          <option value="buttons">Buttons</option>
+          <option value="list">List</option>
+        </select>
+      </label>
+      <label>{messageType === 'list' ? 'List body' : messageType === 'buttons' ? 'Button message' : 'Message'}
+        <textarea rows={2} value={message} onChange={(e) => setMessage(e.target.value)} placeholder="Hello! How can we help you today?" />
+      </label>
+      {messageType !== 'text' && (
+        <>
+          <label>Header (optional)<input value={headerText} onChange={(e) => setHeaderText(e.target.value)} placeholder="Header text" /></label>
+          <label>Footer (optional)<input value={footerText} onChange={(e) => setFooterText(e.target.value)} placeholder="Footer text" /></label>
+        </>
+      )}
+      {messageType === 'buttons' && (
+        <label>Buttons, one per line: title | id
+          <textarea rows={3} value={buttonLines} onChange={(e) => setButtonLines(e.target.value)} placeholder={'See products | see_products\nTalk to a human | talk_to_human'} />
+        </label>
+      )}
+      {messageType === 'list' && (
+        <label>Rows, one per line: title | description | id
+          <textarea rows={4} value={rowLines} onChange={(e) => setRowLines(e.target.value)} placeholder={'Delivery | Check delivery status | delivery\nReturns | Start a return | returns'} />
+        </label>
+      )}
       <button onClick={create} disabled={busy}>{busy ? <span className="spinner" /> : 'Add quick reply'}</button>
       <ul className="settings-list">
          {replies.length === 0 && <li className="empty-list-state">No quick replies yet. Add a shortcut agents can use in the inbox.</li>}
          {replies.map((r) => (
           <li key={r.id}>
-            <div><strong>{r.shortcut}</strong> — {r.message}</div>
+             <div><strong>{r.shortcut}</strong> <span className="tag-chip">{r.messageType ?? 'text'}</span> — {r.message}</div>
             <button className="icon-btn" onClick={() => remove(r.id)}><Trash2 size={16} /></button>
           </li>
         ))}

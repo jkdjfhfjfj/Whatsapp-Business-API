@@ -1,10 +1,29 @@
 import { useEffect, useRef, useState } from 'react';
-import { Paperclip, Send, Mic, Square, X, Trash2, FileText, AudioLines } from 'lucide-react';
+import { Paperclip, Send, Mic, Square, X, Trash2, FileText, AudioLines, List, Plus } from 'lucide-react';
 import { api } from '../api';
 import { useToast } from '../Toast';
 import AttachMenu from './AttachMenu';
 
 type PendingAttachment = { file: File | Blob; kind: 'image' | 'document' | 'video' | 'audio'; previewUrl?: string; name: string };
+type ButtonDraft = { title: string; id: string };
+type RowDraft = { title: string; description: string; id: string };
+type AdvancedDraft = {
+  message: string;
+  headerText: string;
+  footerText: string;
+  actionTitle: string;
+  buttons: ButtonDraft[];
+  rows: RowDraft[];
+};
+
+const emptyAdvancedDraft: AdvancedDraft = {
+  message: '',
+  headerText: '',
+  footerText: '',
+  actionTitle: 'View options',
+  buttons: [{ title: '', id: '' }],
+  rows: [{ title: '', description: '', id: '' }],
+};
 
 function formatDuration(seconds: number) {
   const m = Math.floor(seconds / 60).toString().padStart(2, '0');
@@ -22,6 +41,8 @@ export default function Composer({ conversationId, disabled, disabledReason, onS
   const [attachment, setAttachment] = useState<PendingAttachment | null>(null);
   const [quickReplies, setQuickReplies] = useState<any[]>([]);
   const [quickReplyFilter, setQuickReplyFilter] = useState<string | null>(null);
+  const [advancedType, setAdvancedType] = useState<'buttons' | 'list' | null>(null);
+  const [advanced, setAdvanced] = useState<AdvancedDraft>(emptyAdvancedDraft);
   const [recording, setRecording] = useState(false);
   const [recordSeconds, setRecordSeconds] = useState(0);
 
@@ -33,7 +54,7 @@ export default function Composer({ conversationId, disabled, disabledReason, onS
   useEffect(() => { api.listQuickReplies().then(setQuickReplies).catch(() => {}); }, []);
   useEffect(() => {
     // Reset the composer whenever the conversation changes so drafts don't leak between chats.
-    setText(''); setAttachment(null); setShowAttachMenu(false);
+    setText(''); setAttachment(null); setShowAttachMenu(false); setAdvancedType(null); setAdvanced(emptyAdvancedDraft);
   }, [conversationId]);
 
   // Auto-grow the textarea up to a sane cap instead of a fixed single-line box.
@@ -50,8 +71,26 @@ export default function Composer({ conversationId, disabled, disabledReason, onS
     setQuickReplyFilter(match ? match[2] : null);
   }
 
-  function insertQuickReply(message: string) {
-    setText(message);
+  function insertQuickReply(reply: any) {
+    if (reply.messageType === 'buttons' || reply.messageType === 'list') {
+      const payload = reply.payload ?? {};
+      setText('');
+      setAdvancedType(reply.messageType);
+      setAdvanced({
+        ...emptyAdvancedDraft,
+        message: reply.message ?? '',
+        headerText: payload.headerText ?? '',
+        footerText: payload.footerText ?? '',
+        actionTitle: payload.actionTitle ?? 'View options',
+        buttons: Array.isArray(payload.buttons) && payload.buttons.length ? payload.buttons : emptyAdvancedDraft.buttons,
+        rows: Array.isArray(payload.listOfSections?.[0]?.rows) && payload.listOfSections[0].rows.length
+          ? payload.listOfSections[0].rows
+          : emptyAdvancedDraft.rows,
+      });
+    } else {
+      setAdvancedType(null);
+      setText(reply.message ?? '');
+    }
     setQuickReplyFilter(null);
     textareaRef.current?.focus();
   }
@@ -59,10 +98,51 @@ export default function Composer({ conversationId, disabled, disabledReason, onS
   async function send() {
     if (sending) return;
     if (attachment) return sendAttachment();
+    if (advancedType) return sendAdvanced();
     if (!text.trim()) return;
     setSending(true);
     try {
       await api.sendText(conversationId, text.trim());
+      setText('');
+      onSent?.();
+    } catch (err) {
+      toast((err as Error).message, 'error');
+    } finally {
+      setSending(false);
+    }
+  }
+
+  async function sendAdvanced() {
+    if (!advancedType || sending) return;
+    if (!advanced.message.trim()) {
+      toast(advancedType === 'buttons' ? 'Add the button message text.' : 'Add the list message text.', 'error');
+      return;
+    }
+    setSending(true);
+    try {
+      if (advancedType === 'buttons') {
+        const buttons = advanced.buttons.filter((button) => button.title.trim() && button.id.trim());
+        if (buttons.length < 1 || buttons.length > 3) {
+          toast('Add between 1 and 3 complete buttons.', 'error');
+          return;
+        }
+        await api.sendButtons(conversationId, advanced.message.trim(), buttons, advanced.headerText.trim() || undefined, advanced.footerText.trim() || undefined);
+      } else {
+        const rows = advanced.rows.filter((row) => row.title.trim() && row.description.trim() && row.id.trim());
+        if (rows.length < 1 || rows.length > 10) {
+          toast('Add between 1 and 10 complete list rows.', 'error');
+          return;
+        }
+        await api.sendList(conversationId, {
+          headerText: advanced.headerText.trim() || undefined,
+          bodyText: advanced.message.trim(),
+          footerText: advanced.footerText.trim() || undefined,
+          actionTitle: advanced.actionTitle.trim() || 'View options',
+          listOfSections: [{ title: 'Options', rows }],
+        });
+      }
+      setAdvancedType(null);
+      setAdvanced(emptyAdvancedDraft);
       setText('');
       onSent?.();
     } catch (err) {
@@ -148,6 +228,48 @@ export default function Composer({ conversationId, disabled, disabledReason, onS
         </div>
       )}
 
+      {advancedType && (
+        <div className="advanced-panel">
+          <div className="advanced-panel-top">
+            <strong>{advancedType === 'buttons' ? 'Button message' : 'List message'}</strong>
+            <button className="icon-btn" onClick={() => { setAdvancedType(null); setAdvanced(emptyAdvancedDraft); }} aria-label="Close advanced message"><X size={16} /></button>
+          </div>
+          <label>Header (optional)
+            <input value={advanced.headerText} maxLength={60} onChange={(e) => setAdvanced({ ...advanced, headerText: e.target.value })} placeholder="Header text" />
+          </label>
+          <label>{advancedType === 'buttons' ? 'Message' : 'Body'}
+            <textarea rows={2} value={advanced.message} onChange={(e) => setAdvanced({ ...advanced, message: e.target.value })} placeholder="Message shown to the customer" />
+          </label>
+          {advancedType === 'buttons' ? (
+            <div className="advanced-fields">
+              {advanced.buttons.map((button, index) => (
+                <div className="advanced-item-row" key={index}>
+                  <input value={button.title} maxLength={20} onChange={(e) => setAdvanced({ ...advanced, buttons: advanced.buttons.map((b, i) => i === index ? { ...b, title: e.target.value } : b) })} placeholder={`Button ${index + 1} title`} />
+                  <input value={button.id} maxLength={256} onChange={(e) => setAdvanced({ ...advanced, buttons: advanced.buttons.map((b, i) => i === index ? { ...b, id: e.target.value } : b) })} placeholder="Button ID" />
+                </div>
+              ))}
+              {advanced.buttons.length < 3 && <button type="button" className="secondary-action" onClick={() => setAdvanced({ ...advanced, buttons: [...advanced.buttons, { title: '', id: '' }] })}><Plus size={14} /> Add button</button>}
+            </div>
+          ) : (
+            <div className="advanced-fields">
+              <label>Rows
+                {advanced.rows.map((row, index) => (
+                  <div className="advanced-item-row list-row" key={index}>
+                    <input value={row.title} maxLength={24} onChange={(e) => setAdvanced({ ...advanced, rows: advanced.rows.map((r, i) => i === index ? { ...r, title: e.target.value } : r) })} placeholder="Row title" />
+                    <input value={row.description} maxLength={72} onChange={(e) => setAdvanced({ ...advanced, rows: advanced.rows.map((r, i) => i === index ? { ...r, description: e.target.value } : r) })} placeholder="Description" />
+                    <input value={row.id} maxLength={200} onChange={(e) => setAdvanced({ ...advanced, rows: advanced.rows.map((r, i) => i === index ? { ...r, id: e.target.value } : r) })} placeholder="Row ID" />
+                  </div>
+                ))}
+              </label>
+              {advanced.rows.length < 10 && <button type="button" className="secondary-action" onClick={() => setAdvanced({ ...advanced, rows: [...advanced.rows, { title: '', description: '', id: '' }] })}><Plus size={14} /> Add row</button>}
+            </div>
+          )}
+          <label>Footer (optional)
+            <input value={advanced.footerText} maxLength={60} onChange={(e) => setAdvanced({ ...advanced, footerText: e.target.value })} placeholder="Footer text" />
+          </label>
+        </div>
+      )}
+
       {recording && (
         <div className="recording-bar">
           <span className="rec-dot" /> Recording… {formatDuration(recordSeconds)}
@@ -157,9 +279,9 @@ export default function Composer({ conversationId, disabled, disabledReason, onS
 
       {filteredQuickReplies.length > 0 && (
         <ul className="quick-reply-menu">
-          {filteredQuickReplies.map((q) => (
-            <li key={q.id} onClick={() => insertQuickReply(q.message)}>
-              <strong>{q.shortcut}</strong> <span>{q.message.slice(0, 60)}</span>
+            {filteredQuickReplies.map((q) => (
+             <li key={q.id} onClick={() => insertQuickReply(q)}>
+               <strong>{q.shortcut}</strong> <span>{q.messageType !== 'text' ? `[${q.messageType}] ` : ''}{q.message.slice(0, 60)}</span>
             </li>
           ))}
         </ul>
@@ -168,6 +290,7 @@ export default function Composer({ conversationId, disabled, disabledReason, onS
       {!recording && (
         <div className="composer">
           <button className="icon-btn" onClick={() => setShowAttachMenu(true)} aria-label="Attach"><Paperclip size={22} /></button>
+          <button className={`icon-btn ${advancedType ? 'active' : ''}`} onClick={() => { setAdvancedType(advancedType ? null : 'buttons'); setAdvanced(advancedType ? emptyAdvancedDraft : advanced); }} aria-label="Advanced message"><List size={20} /></button>
 
           <textarea
             ref={textareaRef}

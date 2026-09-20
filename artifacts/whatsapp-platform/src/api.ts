@@ -60,8 +60,15 @@ export const api = {
 
   sendText: (conversationId: string, message: string) =>
     request('/api/messages/text', { method: 'POST', body: JSON.stringify({ conversationId, message }) }),
-  sendButtons: (conversationId: string, message: string, buttons: { title: string; id: string }[]) =>
-    request('/api/messages/buttons', { method: 'POST', body: JSON.stringify({ conversationId, message, buttons }) }),
+  sendButtons: (conversationId: string, message: string, buttons: { title: string; id: string }[], headerText?: string, footerText?: string) =>
+    request('/api/messages/buttons', { method: 'POST', body: JSON.stringify({ conversationId, message, buttons, headerText, footerText }) }),
+  sendList: (conversationId: string, opts: {
+    headerText?: string;
+    bodyText: string;
+    footerText?: string;
+    actionTitle?: string;
+    listOfSections: { title: string; rows: { title: string; description: string; id: string }[] }[];
+  }) => request('/api/messages/list', { method: 'POST', body: JSON.stringify({ conversationId, ...opts }) }),
   sendMedia: (kind: 'image' | 'document' | 'video' | 'audio', conversationId: string, mediaId: string, caption?: string) =>
     request(`/api/messages/${kind}`, { method: 'POST', body: JSON.stringify({ conversationId, mediaId, caption }) }),
 
@@ -83,8 +90,13 @@ export const api = {
   deleteNote: (noteId: string) => request(`/api/notes/entry/${noteId}`, { method: 'DELETE' }),
 
   listQuickReplies: () => request<any[]>('/api/quick-replies'),
-  createQuickReply: (shortcut: string, message: string, category?: string) =>
-    request('/api/quick-replies', { method: 'POST', body: JSON.stringify({ shortcut, message, category }) }),
+  createQuickReply: (body: {
+    shortcut: string;
+    message: string;
+    messageType?: 'text' | 'buttons' | 'list';
+    payload?: Record<string, unknown>;
+    category?: string;
+  }) => request('/api/quick-replies', { method: 'POST', body: JSON.stringify(body) }),
   deleteQuickReply: (id: string) => request(`/api/quick-replies/${id}`, { method: 'DELETE' }),
 
   listAgents: () => request<any[]>('/api/agents'),

@@ -134,20 +134,27 @@ export class WhatsAppService {
     return this.client.sendLocation({ recipientPhone: normalizePhone(recipientPhone), ...opts });
   }
 
-  async sendSimpleButtons(recipientPhone: string, message: string, listOfButtons: SimpleButton[]) {
-    validateSimpleButtons(listOfButtons);
+  async sendSimpleButtons(recipientPhone: string, opts: {
+    message: string;
+    buttons: SimpleButton[];
+    headerText?: string;
+    footerText?: string;
+  }) {
+    validateSimpleButtons(opts.buttons);
     return this.sendMessage(recipientPhone, {
       type: 'interactive',
       interactive: {
         type: 'button',
-        body: { text: message },
-        action: { buttons: listOfButtons.map((button) => ({ type: 'reply', reply: button })) },
+        ...(opts.headerText ? { header: { type: 'text', text: opts.headerText } } : {}),
+        body: { text: opts.message },
+        ...(opts.footerText ? { footer: { text: opts.footerText } } : {}),
+        action: { buttons: opts.buttons.map((button) => ({ type: 'reply', reply: button })) },
       },
     });
   }
 
   async sendRadioButtons(recipientPhone: string, opts: {
-    headerText: string; bodyText: string; footerText?: string; listOfSections: RadioSection[];
+    headerText?: string; bodyText: string; footerText?: string; actionTitle?: string; listOfSections: RadioSection[];
   }) {
     validateRadioSections(opts.listOfSections);
     return this.sendMessage(recipientPhone, {
@@ -158,7 +165,7 @@ export class WhatsAppService {
         body: { text: opts.bodyText },
         ...(opts.footerText ? { footer: { text: opts.footerText } } : {}),
         action: {
-          button: 'View options',
+          button: opts.actionTitle || 'View options',
           sections: opts.listOfSections,
         },
       },

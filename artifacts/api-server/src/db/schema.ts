@@ -184,6 +184,8 @@ export const quickReplies = pgTable('quick_replies', {
   businessId: uuid('business_id').notNull(),
   shortcut: text('shortcut').notNull(), // e.g. "/hello"
   message: text('message').notNull(),
+  messageType: text('message_type').notNull().default('text'), // text|buttons|list
+  payload: jsonb('payload').notNull().default({}), // structured fields for buttons/lists
   category: text('category'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
 });

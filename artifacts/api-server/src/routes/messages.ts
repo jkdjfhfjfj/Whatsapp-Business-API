@@ -85,6 +85,8 @@ const buttonsSchema = z.object({
   conversationId: z.string().uuid(),
   message: z.string().min(1),
   buttons: z.array(z.object({ title: z.string(), id: z.string() })).min(1).max(3),
+  headerText: z.string().max(60).optional(),
+  footerText: z.string().max(60).optional(),
 });
 
 messagesRouter.post('/buttons', async (req, res) => {
@@ -99,10 +101,17 @@ messagesRouter.post('/buttons', async (req, res) => {
   if (!wa) return res.status(400).json({ error: 'WhatsApp is not configured for this business yet.' });
 
   try {
-    const response = await wa.sendSimpleButtons(ctx.contact.waId, parsed.data.message, parsed.data.buttons);
+    const response = await wa.sendSimpleButtons(ctx.contact.waId, {
+      message: parsed.data.message,
+      buttons: parsed.data.buttons,
+      headerText: parsed.data.headerText,
+      footerText: parsed.data.footerText,
+    });
     const saved = await recordOutbound(businessId, ctx.conversation.id, req.tenant!.userId, 'interactive_buttons', {
       message: parsed.data.message,
       buttons: parsed.data.buttons,
+      headerText: parsed.data.headerText,
+      footerText: parsed.data.footerText,
     }, extractWhatsAppMessageId(response));
     res.json(saved);
   } catch (err) {
@@ -112,9 +121,10 @@ messagesRouter.post('/buttons', async (req, res) => {
 
 const listSchema = z.object({
   conversationId: z.string().uuid(),
-  headerText: z.string(),
-  bodyText: z.string(),
+  headerText: z.string().max(60).optional(),
+  bodyText: z.string().min(1),
   footerText: z.string().optional(),
+  actionTitle: z.string().max(20).optional(),
   listOfSections: z.array(z.object({
     title: z.string(),
     rows: z.array(z.object({ title: z.string(), description: z.string(), id: z.string() })),

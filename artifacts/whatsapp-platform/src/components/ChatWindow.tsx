@@ -16,21 +16,25 @@ function renderContent(msg: any) {
     case 'interactive_buttons': // outbound: we sent a button prompt
       return (
         <div>
+          {msg.content.headerText && <strong className="interactive-header">{msg.content.headerText}</strong>}
           <p>{msg.content.message}</p>
           <div className="sent-options">
             {msg.content.buttons?.map((b: any) => <span key={b.id} className="option-chip">{b.title}</span>)}
           </div>
+          {msg.content.footerText && <small className="interactive-footer">{msg.content.footerText}</small>}
         </div>
       );
     case 'interactive_list': // outbound: we sent a list prompt
       return (
         <div>
+          {msg.content.headerText && <strong className="interactive-header">{msg.content.headerText}</strong>}
           <p>{msg.content.bodyText}</p>
           <div className="sent-options">
             {msg.content.listOfSections?.flatMap((s: any) => s.rows).map((r: any) => (
               <span key={r.id} className="option-chip">{r.title}</span>
             ))}
           </div>
+          {msg.content.footerText && <small className="interactive-footer">{msg.content.footerText}</small>}
         </div>
       );
     case 'location':
