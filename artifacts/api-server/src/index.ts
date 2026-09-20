@@ -12,8 +12,6 @@ import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import cors from 'cors';
 import morgan from 'morgan';
-import session from 'express-session';
-import connectPgSimple from 'connect-pg-simple';
 import { pool } from './db/client.js';
 import { authRouter } from './routes/auth.js';
 import { wabaRouter } from './routes/waba.js';
@@ -33,13 +31,6 @@ import { ensureDefaultTenant } from './services/defaultTenant.js';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const app = express();
-const PgSession = connectPgSimple(session);
-
-// Render (and most PaaS) terminate TLS at a proxy in front of the app, so Express sees plain
-// HTTP internally. Without `trust proxy`, express-session can't tell the connection is actually
-// HTTPS, so `cookie.secure: true` cookies silently fail to be set/sent — the exact bug that was
-// causing repeated logouts ("deauthentication"). This must be set before the session middleware.
-app.set('trust proxy', 1);
 
 // CORS only matters when the client is served from a different origin (local dev with two
 // separate dev servers). In the single-service Render deployment below, the browser and API
@@ -51,24 +42,8 @@ app.use(cors({
 app.use(express.json({ limit: '5mb' }));
 
 // Logs every request as: METHOD path STATUS response-time-ms — visible in Render's log tab.
-// This alone answers "did the request even arrive, and what did the server send back" for any
-// 404/401/500 report, without needing to reproduce the bug live with someone watching.
-morgan.token('business', (req) => (req as any).session?.businessId ?? '-');
+morgan.token('business', (req) => (req as express.Request).tenant?.businessId ?? '-');
 app.use(morgan(':method :url :status :res[content-length] - :response-time ms (business=:business)'));
-
-app.use(session({
-  store: new PgSession({ pool, tableName: 'session', createTableIfMissing: true }),
-  secret: process.env.SESSION_SECRET ?? 'dev-secret-change-me',
-  resave: false,
-  saveUninitialized: false,
-  rolling: true, // sliding expiry — being active keeps you logged in
-  cookie: {
-    httpOnly: true,
-    sameSite: 'lax',
-    secure: process.env.NODE_ENV === 'production',
-    maxAge: 1000 * 60 * 60 * 24 * 14,
-  },
-}));
 
 app.get('/health', async (_req, res) => {
   try {
@@ -124,7 +99,7 @@ app.use((err: any, req: express.Request, res: express.Response, _next: express.N
   // Log with enough context to diagnose without reproducing live: which request, which user/
   // business, and the full stack — not just the message.
   console.error(
-    `[error] ${req.method} ${req.originalUrl} (business=${req.session?.businessId ?? '-'} user=${req.session?.userId ?? '-'})`,
+    `[error] ${req.method} ${req.originalUrl} (business=${req.tenant?.businessId ?? '-'} user=${req.tenant?.userId ?? '-'})`,
     err,
   );
 
@@ -166,6 +141,6 @@ initWebSocketServer(server);
 await ensureDefaultTenant();
 
 server.listen(port, () => {
-  console.log(`Listening on http://localhost:${port} (no authentication — anyone with this URL has full access)`);
+  console.log(`Listening on http://localhost:${port} (single-workspace access; no application login)`);
 });
 

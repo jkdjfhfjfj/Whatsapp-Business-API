@@ -36,7 +36,7 @@ async function recordOutbound(businessId: string, conversationId: string, sender
 const textSchema = z.object({ conversationId: z.string().uuid(), message: z.string().min(1) });
 
 messagesRouter.post('/text', async (req, res) => {
-  const businessId = req.session.businessId!;
+  const businessId = req.tenant!.businessId;
   const parsed = textSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
 
@@ -48,7 +48,7 @@ messagesRouter.post('/text', async (req, res) => {
 
   try {
     await wa.sendText(ctx.contact.waId, parsed.data.message);
-    const saved = await recordOutbound(businessId, ctx.conversation.id, req.session.userId!, 'text', { text: parsed.data.message });
+    const saved = await recordOutbound(businessId, ctx.conversation.id, req.tenant!.userId, 'text', { text: parsed.data.message });
     res.json(saved);
   } catch (err) {
     res.status(400).json({ error: formatWhatsAppError(err) });
@@ -62,7 +62,7 @@ const buttonsSchema = z.object({
 });
 
 messagesRouter.post('/buttons', async (req, res) => {
-  const businessId = req.session.businessId!;
+  const businessId = req.tenant!.businessId;
   const parsed = buttonsSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
 
@@ -74,7 +74,7 @@ messagesRouter.post('/buttons', async (req, res) => {
 
   try {
     await wa.sendSimpleButtons(ctx.contact.waId, parsed.data.message, parsed.data.buttons);
-    const saved = await recordOutbound(businessId, ctx.conversation.id, req.session.userId!, 'interactive_buttons', {
+    const saved = await recordOutbound(businessId, ctx.conversation.id, req.tenant!.userId, 'interactive_buttons', {
       message: parsed.data.message,
       buttons: parsed.data.buttons,
     });
@@ -96,7 +96,7 @@ const listSchema = z.object({
 });
 
 messagesRouter.post('/list', async (req, res) => {
-  const businessId = req.session.businessId!;
+  const businessId = req.tenant!.businessId;
   const parsed = listSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
 
@@ -109,7 +109,7 @@ messagesRouter.post('/list', async (req, res) => {
   try {
     const { conversationId, ...opts } = parsed.data;
     await wa.sendRadioButtons(ctx.contact.waId, opts);
-    const saved = await recordOutbound(businessId, ctx.conversation.id, req.session.userId!, 'interactive_list', opts);
+    const saved = await recordOutbound(businessId, ctx.conversation.id, req.tenant!.userId, 'interactive_list', opts);
     res.json(saved);
   } catch (err) {
     res.status(400).json({ error: formatWhatsAppError(err) });
@@ -133,7 +133,7 @@ for (const [path, method] of [
   ['audio', 'sendAudio'],
 ] as const) {
   messagesRouter.post(`/${path}`, async (req, res) => {
-    const businessId = req.session.businessId!;
+    const businessId = req.tenant!.businessId;
     const parsed = mediaSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
 
@@ -168,7 +168,7 @@ for (const [path, method] of [
         file_path: filePath,
         caption: parsed.data.caption,
       });
-      const saved = await recordOutbound(businessId, ctx.conversation.id, req.session.userId!, path, {
+      const saved = await recordOutbound(businessId, ctx.conversation.id, req.tenant!.userId, path, {
         url: parsed.data.url,
         filename: originalFilename,
         caption: parsed.data.caption,

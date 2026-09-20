@@ -11,7 +11,7 @@ export const aiRouter = Router();
 aiRouter.use(requireAuth);
 
 aiRouter.get('/', async (req, res) => {
-  const businessId = req.session.businessId!;
+  const businessId = req.tenant!.businessId;
   const [row] = await db.select().from(aiSettings).where(eq(aiSettings.businessId, businessId)).limit(1);
   if (!row) return res.json(null);
 
@@ -49,7 +49,7 @@ const updateSchema = z.object({
 });
 
 aiRouter.put('/', requireRole('owner', 'admin'), async (req, res) => {
-  const businessId = req.session.businessId!;
+  const businessId = req.tenant!.businessId;
   const parsed = updateSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
   const body = parsed.data;
@@ -78,7 +78,7 @@ aiRouter.post('/test-key', requireRole('owner', 'admin'), async (req, res) => {
 });
 
 aiRouter.get('/models', requireRole('owner', 'admin'), async (req, res) => {
-  const businessId = req.session.businessId!;
+  const businessId = req.tenant!.businessId;
   const [row] = await db.select().from(aiSettings).where(eq(aiSettings.businessId, businessId)).limit(1);
   if (!row?.groqApiKeyEnc) return res.status(400).json({ error: 'No Groq API key saved yet.' });
   try {

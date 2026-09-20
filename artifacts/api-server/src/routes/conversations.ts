@@ -9,7 +9,7 @@ export const conversationsRouter = Router();
 conversationsRouter.use(requireAuth);
 
 conversationsRouter.get('/', async (req, res) => {
-  const businessId = req.session.businessId!;
+  const businessId = req.tenant!.businessId;
   const status = typeof req.query.status === 'string' && req.query.status ? req.query.status : undefined;
   const search = typeof req.query.search === 'string' && req.query.search ? req.query.search : undefined;
 
@@ -39,7 +39,7 @@ conversationsRouter.get('/', async (req, res) => {
 });
 
 conversationsRouter.get('/:id', async (req, res) => {
-  const businessId = req.session.businessId!;
+  const businessId = req.tenant!.businessId;
   const [conversation] = await db
     .select()
     .from(conversations)
@@ -60,7 +60,7 @@ conversationsRouter.get('/:id', async (req, res) => {
 // Mark as read: resets the unread counter and marks the latest inbound message read via the
 // wrapper's markMessageAsRead.
 conversationsRouter.post('/:id/read', async (req, res) => {
-  const businessId = req.session.businessId!;
+  const businessId = req.tenant!.businessId;
   const [conversation] = await db
     .select()
     .from(conversations)
@@ -86,7 +86,7 @@ conversationsRouter.post('/:id/read', async (req, res) => {
 });
 
 conversationsRouter.patch('/:id', async (req, res) => {
-  const businessId = req.session.businessId!;
+  const businessId = req.tenant!.businessId;
   const { status, aiEnabled, assignedAgentId } = req.body as {
     status?: string; aiEnabled?: boolean; assignedAgentId?: string | null;
   };

@@ -1,25 +1,23 @@
 import type { Request, Response, NextFunction } from 'express';
 import { getDefaultTenant } from '../services/defaultTenant.js';
 
-declare module 'express-session' {
-  interface SessionData {
-    userId?: string;
-    businessId?: string;
-    role?: string;
+declare global {
+  namespace Express {
+    interface Request {
+      tenant?: {
+        businessId: string;
+        userId: string;
+        role: string;
+      };
+    }
   }
 }
 
-// Authentication removed: anyone with the URL is treated as the (single) default tenant's
-// owner. This used to reject requests with no valid session (401); now it self-heals every
-// request onto the default business/user instead, so every route downstream that reads
-// req.session.businessId / userId keeps working unchanged.
+// Authentication is intentionally disabled for this single-workspace deployment. Every request
+// is scoped to the one default tenant and does not depend on cookies, sessions, or a login screen.
 export function requireAuth(req: Request, _res: Response, next: NextFunction) {
-  if (!req.session.businessId || !req.session.userId) {
-    const { businessId, userId } = getDefaultTenant();
-    req.session.businessId = businessId;
-    req.session.userId = userId;
-    req.session.role = req.session.role ?? 'owner';
-  }
+  const { businessId, userId } = getDefaultTenant();
+  req.tenant = { businessId, userId, role: 'owner' };
   next();
 }
 

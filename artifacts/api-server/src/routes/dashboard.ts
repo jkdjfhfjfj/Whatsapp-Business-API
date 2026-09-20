@@ -8,7 +8,7 @@ export const dashboardRouter = Router();
 dashboardRouter.use(requireAuth);
 
 dashboardRouter.get('/', async (req, res) => {
-  const businessId = req.session.businessId!;
+  const businessId = req.tenant!.businessId;
   const startOfToday = new Date();
   startOfToday.setHours(0, 0, 0, 0);
   const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);

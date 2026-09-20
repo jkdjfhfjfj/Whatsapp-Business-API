@@ -11,6 +11,6 @@ agentsRouter.get('/', async (req, res) => {
   const rows = await db
     .select({ id: users.id, name: users.name, email: users.email, role: users.role })
     .from(users)
-    .where(eq(users.businessId, req.session.businessId!));
+    .where(eq(users.businessId, req.tenant!.businessId));
   res.json(rows);
 });

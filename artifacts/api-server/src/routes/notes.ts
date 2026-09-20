@@ -9,7 +9,7 @@ export const notesRouter = Router();
 notesRouter.use(requireAuth);
 
 notesRouter.get('/:conversationId', async (req, res) => {
-  const businessId = req.session.businessId!;
+  const businessId = req.tenant!.businessId;
   const [conversation] = await db
     .select()
     .from(conversations)
@@ -32,13 +32,13 @@ notesRouter.post('/:conversationId', async (req, res) => {
   if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
   const [row] = await db
     .insert(notes)
-    .values({ conversationId: req.params.conversationId, authorId: req.session.userId!, body: parsed.data.body })
+    .values({ conversationId: req.params.conversationId, authorId: req.tenant!.userId, body: parsed.data.body })
     .returning();
   res.json(row);
 });
 
 notesRouter.delete('/entry/:noteId', async (req, res) => {
-  const businessId = req.session.businessId!;
+  const businessId = req.tenant!.businessId;
   // Scope the delete to this business by joining back through the conversation, so one
   // business can't delete another's note by guessing an id.
   const [row] = await db

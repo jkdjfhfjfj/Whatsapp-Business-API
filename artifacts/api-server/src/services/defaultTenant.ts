@@ -7,9 +7,8 @@ import { eq } from 'drizzle-orm';
 // Authentication has been removed: anyone with the URL gets in. There is no login to establish
 // "which business/user this request belongs to" anymore, so every request is attached to one
 // auto-created default business/user instead. This keeps the rest of the codebase (which is
-// still written in terms of req.session.businessId / userId throughout) unchanged — see
-// auth/middleware.ts, which now self-heals every request onto this tenant instead of rejecting
-// unauthenticated ones.
+// Routes are still scoped through the request tenant context, but no browser session or login is
+// needed in this single-workspace deployment.
 const DEFAULT_BUSINESS_NAME = process.env.DEFAULT_BUSINESS_NAME ?? 'My Business';
 
 let cached: { businessId: string; userId: string } | null = null;

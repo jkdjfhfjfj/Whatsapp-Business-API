@@ -9,7 +9,7 @@ export const quickRepliesRouter = Router();
 quickRepliesRouter.use(requireAuth);
 
 quickRepliesRouter.get('/', async (req, res) => {
-  const rows = await db.select().from(quickReplies).where(eq(quickReplies.businessId, req.session.businessId!));
+  const rows = await db.select().from(quickReplies).where(eq(quickReplies.businessId, req.tenant!.businessId));
   res.json(rows);
 });
 
@@ -21,7 +21,7 @@ quickRepliesRouter.post('/', async (req, res) => {
   const shortcut = parsed.data.shortcut.trim().replace(/^\/+/, '');
   if (!shortcut) return res.status(400).json({ error: 'Shortcut must contain at least one character.' });
   const [row] = await db.insert(quickReplies).values({
-    businessId: req.session.businessId!,
+    businessId: req.tenant!.businessId,
     ...parsed.data,
     shortcut: `/${shortcut}`,
   }).returning();
@@ -29,6 +29,6 @@ quickRepliesRouter.post('/', async (req, res) => {
 });
 
 quickRepliesRouter.delete('/:id', async (req, res) => {
-  await db.delete(quickReplies).where(and(eq(quickReplies.id, req.params.id), eq(quickReplies.businessId, req.session.businessId!)));
+  await db.delete(quickReplies).where(and(eq(quickReplies.id, req.params.id), eq(quickReplies.businessId, req.tenant!.businessId)));
   res.json({ ok: true });
 });

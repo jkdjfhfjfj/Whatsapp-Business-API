@@ -37,7 +37,7 @@ uploadsRouter.get('/storage-info', (_req, res) => {
 // Agent uploads a file to attach to an outbound message. Returns a media record whose
 // storagePath + storageProvider the /api/messages/* send routes resolve into a sendable file.
 uploadsRouter.post('/', upload.single('file'), async (req, res) => {
-  const businessId = req.session.businessId!;
+  const businessId = req.tenant!.businessId;
   if (!req.file) return res.status(400).json({ error: 'No file uploaded.' });
 
   try {
@@ -64,7 +64,7 @@ uploadsRouter.post('/', upload.single('file'), async (req, res) => {
 // uploaded and for inbound media once it's been downloaded/cached by the route below). Works
 // the same regardless of storage provider — the browser never talks to GitHub directly.
 uploadsRouter.get('/:id/content', async (req, res) => {
-  const businessId = req.session.businessId!;
+  const businessId = req.tenant!.businessId;
   const [row] = await db
     .select()
     .from(media)
@@ -86,7 +86,7 @@ uploadsRouter.get('/:id/content', async (req, res) => {
 // (Meta's own media URLs expire quickly, so we don't store those directly). Subsequent requests
 // serve the saved copy via the route above.
 uploadsRouter.get('/for-message/:messageId', async (req, res) => {
-  const businessId = req.session.businessId!;
+  const businessId = req.tenant!.businessId;
 
   const existing = await db
     .select()

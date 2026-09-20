@@ -1,7 +1,7 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { build as esbuild } from "esbuild";
-import { copyFile, rm } from "node:fs/promises";
+import { rm } from "node:fs/promises";
 
 const artifactDir = path.dirname(fileURLToPath(import.meta.url));
 
@@ -109,14 +109,6 @@ globalThis.__dirname = __bannerPath.dirname(globalThis.__filename);
     `,
     },
   });
-
-  // connect-pg-simple reads this SQL file at runtime when it initializes the
-  // session table. Bundling moves __dirname into dist, so copy the package
-  // asset beside the bundled server.
-  await copyFile(
-    path.resolve(artifactDir, "node_modules/connect-pg-simple/table.sql"),
-    path.join(distDir, "table.sql"),
-  );
 }
 
 buildAll().catch((err) => {

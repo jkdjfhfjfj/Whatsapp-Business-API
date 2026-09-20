@@ -11,7 +11,7 @@ export const wabaRouter = Router();
 wabaRouter.use(requireAuth);
 
 wabaRouter.get('/', async (req, res) => {
-  const businessId = req.session.businessId!;
+  const businessId = req.tenant!.businessId;
   const [row] = await db.select().from(wabaSettings).where(eq(wabaSettings.businessId, businessId)).limit(1);
   if (!row) return res.json(null);
 
@@ -40,7 +40,7 @@ const updateSchema = z.object({
 });
 
 wabaRouter.put('/', requireRole('owner', 'admin'), async (req, res) => {
-  const businessId = req.session.businessId!;
+  const businessId = req.tenant!.businessId;
   const parsed = updateSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
   const body = parsed.data;
@@ -61,7 +61,7 @@ wabaRouter.put('/', requireRole('owner', 'admin'), async (req, res) => {
 
 // Sends a test text message to verify the credentials actually work end-to-end.
 wabaRouter.post('/test-connection', requireRole('owner', 'admin'), async (req, res) => {
-  const businessId = req.session.businessId!;
+  const businessId = req.tenant!.businessId;
   const { testRecipientPhone } = req.body as { testRecipientPhone?: string };
   const [row] = await db.select().from(wabaSettings).where(eq(wabaSettings.businessId, businessId)).limit(1);
 
