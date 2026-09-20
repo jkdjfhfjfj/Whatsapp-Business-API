@@ -6,9 +6,13 @@
 import { createRequire } from 'node:module';
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import os from 'node:os';
+import { execFile as execFileCallback } from 'node:child_process';
+import { promisify } from 'node:util';
 import { lookup as lookupMimeType } from 'mime-types';
 const require = createRequire(import.meta.url);
 const WhatsappCloudAPI = require('whatsappcloudapi_wrapper');
+const execFile = promisify(execFileCallback);
 
 export interface WabaCredentials {
   accessToken: string;
@@ -253,9 +257,22 @@ export class WhatsAppService {
     if (opts.url) {
       mediaPayload.link = opts.url;
     } else if (opts.file_path) {
-      const mimeType = opts.mimeType || lookupMimeType(opts.filename ?? path.basename(opts.file_path)) || defaultMimeType(type);
-      const uploadedId = await this.uploadMedia(opts.file_path, mimeType, opts.filename ?? path.basename(opts.file_path));
-      mediaPayload.id = uploadedId;
+      let uploadPath = opts.file_path;
+      let uploadMimeType = opts.mimeType || lookupMimeType(opts.filename ?? path.basename(opts.file_path)) || defaultMimeType(type);
+      let uploadFilename = opts.filename ?? path.basename(opts.file_path);
+      let cleanupPath: string | undefined;
+      try {
+        if (type === 'audio') {
+          const prepared = await prepareAudioForWhatsApp(uploadPath);
+          uploadPath = prepared.filePath;
+          uploadMimeType = prepared.mimeType;
+          uploadFilename = prepared.filename;
+          cleanupPath = prepared.filePath;
+        }
+        mediaPayload.id = await this.uploadMedia(uploadPath, uploadMimeType, uploadFilename);
+      } finally {
+        if (cleanupPath) await fs.rm(cleanupPath, { force: true }).catch(() => {});
+      }
     } else {
       throw new Error(`A ${type} requires a public URL or an uploaded file.`);
     }
@@ -281,6 +298,28 @@ export class WhatsAppService {
       throw new Error(formatMetaApiError('upload media', response.status, data));
     }
     return data.id;
+  }
+}
+
+async function prepareAudioForWhatsApp(filePath: string): Promise<{ filePath: string; mimeType: string; filename: string }> {
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'whatsapp-audio-'));
+  const outputPath = path.join(tempDir, 'voice-note.ogg');
+  try {
+    await execFile('ffmpeg', [
+      '-nostdin',
+      '-y',
+      '-i', filePath,
+      '-vn',
+      '-ac', '1',
+      '-c:a', 'libopus',
+      '-b:a', '64k',
+      outputPath,
+    ], { timeout: 120_000 });
+    return { filePath: outputPath, mimeType: 'audio/ogg', filename: 'voice-note.ogg' };
+  } catch (err) {
+    await fs.rm(tempDir, { recursive: true, force: true }).catch(() => {});
+    const detail = err instanceof Error ? err.message : String(err);
+    throw new Error(`Could not convert audio to WhatsApp-compatible OGG/Opus: ${detail}`);
   }
 }
 

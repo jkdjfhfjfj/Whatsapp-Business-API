@@ -23,10 +23,29 @@ async function loadConversationAndContact(businessId: string, conversationId: st
   return { conversation, contact };
 }
 
-async function recordOutbound(businessId: string, conversationId: string, senderId: string, type: string, content: Record<string, unknown>, whatsappMessageId?: string) {
+async function recordOutbound(
+  businessId: string,
+  conversationId: string,
+  senderId: string,
+  type: string,
+  content: Record<string, unknown>,
+  whatsappMessageId?: string,
+  errorMessage?: string,
+) {
   const [saved] = await db
     .insert(messages)
-    .values({ conversationId, businessId, direction: 'outbound', senderType: 'agent', senderId, type, content, whatsappMessageId, status: 'sent' })
+    .values({
+      conversationId,
+      businessId,
+      direction: 'outbound',
+      senderType: 'agent',
+      senderId,
+      type,
+      content,
+      whatsappMessageId,
+      status: errorMessage ? 'failed' : 'sent',
+      errorMessage,
+    })
     .returning();
   await db.update(conversations).set({ updatedAt: new Date() }).where(eq(conversations.id, conversationId));
   broadcastToBusiness(businessId, 'message:new', saved);
@@ -165,28 +184,50 @@ for (const [path, method] of [
     if (!wa) { cleanup?.(); return res.status(400).json({ error: 'WhatsApp is not configured for this business yet.' }); }
 
     try {
-      await (wa[method] as (phone: string, opts: unknown) => Promise<unknown>)(ctx.contact.waId, {
+       const response = await (wa[method] as (phone: string, opts: unknown) => Promise<unknown>)(ctx.contact.waId, {
         url: parsed.data.url,
         file_path: filePath,
         mimeType,
         filename: originalFilename,
         caption: parsed.data.caption,
       });
-      const saved = await recordOutbound(businessId, ctx.conversation.id, req.tenant!.userId, path, {
+       const whatsappMessageId = extractWhatsAppMessageId(response);
+       const saved = await recordOutbound(businessId, ctx.conversation.id, req.tenant!.userId, path, {
         url: parsed.data.url,
         filename: originalFilename,
         mimeType,
         caption: parsed.data.caption,
         mediaId: parsed.data.mediaId,
-      });
+       }, whatsappMessageId);
       if (parsed.data.mediaId) {
         await db.update(media).set({ messageId: saved.id }).where(eq(media.id, parsed.data.mediaId));
       }
       res.json(saved);
     } catch (err) {
-      res.status(400).json({ error: formatWhatsAppError(err) });
+       const errorMessage = formatWhatsAppError(err);
+       const failed = await recordOutbound(businessId, ctx.conversation.id, req.tenant!.userId, path, {
+         url: parsed.data.url,
+         filename: originalFilename,
+         mimeType,
+         caption: parsed.data.caption,
+         mediaId: parsed.data.mediaId,
+       }, undefined, errorMessage);
+       if (parsed.data.mediaId) {
+         await db.update(media).set({ messageId: failed.id }).where(eq(media.id, parsed.data.mediaId));
+       }
+       res.status(400).json({ error: errorMessage, messageId: failed.id });
     } finally {
       cleanup?.();
     }
   });
+}
+
+function extractWhatsAppMessageId(response: unknown): string | undefined {
+  if (!response || typeof response !== 'object') return undefined;
+  const value = response as {
+    messages?: { id?: unknown }[];
+    response?: { data?: { messages?: { id?: unknown }[] } };
+  };
+  const id = value.messages?.[0]?.id ?? value.response?.data?.messages?.[0]?.id;
+  return typeof id === 'string' ? id : undefined;
 }

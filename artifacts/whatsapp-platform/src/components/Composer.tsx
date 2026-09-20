@@ -88,7 +88,7 @@ export default function Composer({ conversationId, disabled, disabledReason, onS
     }
   }
 
-  function onPickFile(file: File, kind: 'image' | 'document' | 'video') {
+  function onPickFile(file: File, kind: 'image' | 'document' | 'video' | 'audio') {
     const previewUrl = kind === 'image' || kind === 'video' ? URL.createObjectURL(file) : undefined;
     setAttachment({ file, kind, previewUrl, name: file.name });
   }
