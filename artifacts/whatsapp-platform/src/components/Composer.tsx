@@ -96,12 +96,16 @@ export default function Composer({ conversationId, disabled, disabledReason, onS
   async function startRecording() {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const recorder = new MediaRecorder(stream);
+      const recordingType = ['audio/ogg;codecs=opus', 'audio/mp4', 'audio/webm']
+        .find((type) => MediaRecorder.isTypeSupported(type));
+      const recorder = new MediaRecorder(stream, recordingType ? { mimeType: recordingType } : undefined);
       chunks.current = [];
       recorder.ondataavailable = (e) => chunks.current.push(e.data);
       recorder.onstop = () => {
-        const blob = new Blob(chunks.current, { type: 'audio/webm' });
-        setAttachment({ file: blob, kind: 'audio', name: 'voice-note.webm' });
+        const mimeType = recorder.mimeType || recordingType || 'audio/ogg';
+        const extension = mimeType.includes('mp4') ? 'm4a' : mimeType.includes('webm') ? 'webm' : 'ogg';
+        const blob = new Blob(chunks.current, { type: mimeType });
+        setAttachment({ file: blob, kind: 'audio', name: `voice-note.${extension}` });
         stream.getTracks().forEach((t) => t.stop());
       };
       recorder.start();

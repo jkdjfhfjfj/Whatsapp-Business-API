@@ -4,6 +4,9 @@
 
 // The package ships as CommonJS; import it via createRequire for clean ESM interop.
 import { createRequire } from 'node:module';
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import { lookup as lookupMimeType } from 'mime-types';
 const require = createRequire(import.meta.url);
 const WhatsappCloudAPI = require('whatsappcloudapi_wrapper');
 
@@ -27,6 +30,10 @@ export interface RadioSection {
 // no leading '+'.
 export function normalizePhone(phone: string): string {
   return phone.replace(/[^\d]/g, '');
+}
+
+function normalizeAccessToken(token: string): string {
+  return token.trim().replace(/^Bearer\s+/i, '');
 }
 
 export function validateSimpleButtons(buttons: SimpleButton[]) {
@@ -70,10 +77,12 @@ export class WhatsAppService {
   private client: any;
   private accessToken: string;
   private apiVersion: string;
+  private senderPhoneNumberId: string;
 
   constructor(credentials: WabaCredentials & { apiVersion?: string }) {
-    this.accessToken = credentials.accessToken;
+    this.accessToken = normalizeAccessToken(credentials.accessToken);
     this.apiVersion = credentials.apiVersion ?? 'v20.0';
+    this.senderPhoneNumberId = credentials.senderPhoneNumberId;
     // The wrapper calls this option graphAPIVersion. Passing apiVersion directly is
     // ignored, which makes it fall back to its old v13.0 default.
     this.client = new WhatsappCloudAPI({
@@ -95,41 +104,26 @@ export class WhatsAppService {
   }
 
   async sendText(recipientPhone: string, message: string) {
-    return this.client.sendText({ message, recipientPhone: normalizePhone(recipientPhone) });
-  }
-
-  async sendImage(recipientPhone: string, opts: { file_path: string; caption?: string }) {
-    return this.client.sendImage({
-      recipientPhone: normalizePhone(recipientPhone),
-      caption: opts.caption,
-      file_path: opts.file_path,
+    return this.sendMessage(recipientPhone, {
+      type: 'text',
+      text: { preview_url: false, body: message },
     });
   }
 
-  async sendDocument(recipientPhone: string, opts: { url?: string; file_path?: string; caption?: string }) {
-    return this.client.sendDocument({
-      recipientPhone: normalizePhone(recipientPhone),
-      caption: opts.caption,
-      url: opts.url,
-      file_path: opts.file_path,
-    });
+  async sendImage(recipientPhone: string, opts: MediaSendOptions) {
+    return this.sendMediaMessage(recipientPhone, 'image', opts);
   }
 
-  async sendVideo(recipientPhone: string, opts: { url?: string; file_path?: string; caption?: string }) {
-    return this.client.sendVideo({
-      recipientPhone: normalizePhone(recipientPhone),
-      caption: opts.caption,
-      url: opts.url,
-      file_path: opts.file_path,
-    });
+  async sendDocument(recipientPhone: string, opts: MediaSendOptions) {
+    return this.sendMediaMessage(recipientPhone, 'document', opts);
   }
 
-  async sendAudio(recipientPhone: string, opts: { url?: string; file_path?: string }) {
-    return this.client.sendAudio({
-      recipientPhone: normalizePhone(recipientPhone),
-      url: opts.url,
-      file_path: opts.file_path,
-    });
+  async sendVideo(recipientPhone: string, opts: MediaSendOptions) {
+    return this.sendMediaMessage(recipientPhone, 'video', opts);
+  }
+
+  async sendAudio(recipientPhone: string, opts: MediaSendOptions) {
+    return this.sendMediaMessage(recipientPhone, 'audio', opts);
   }
 
   async sendLocation(recipientPhone: string, opts: { latitude: string; longitude: string; name: string; address: string }) {
@@ -138,10 +132,13 @@ export class WhatsAppService {
 
   async sendSimpleButtons(recipientPhone: string, message: string, listOfButtons: SimpleButton[]) {
     validateSimpleButtons(listOfButtons);
-    return this.client.sendSimpleButtons({
-      recipientPhone: normalizePhone(recipientPhone),
-      message,
-      listOfButtons,
+    return this.sendMessage(recipientPhone, {
+      type: 'interactive',
+      interactive: {
+        type: 'button',
+        body: { text: message },
+        action: { buttons: listOfButtons.map((button) => ({ type: 'reply', reply: button })) },
+      },
     });
   }
 
@@ -149,9 +146,18 @@ export class WhatsAppService {
     headerText: string; bodyText: string; footerText?: string; listOfSections: RadioSection[];
   }) {
     validateRadioSections(opts.listOfSections);
-    return this.client.sendRadioButtons({
-      recipientPhone: normalizePhone(recipientPhone),
-      ...opts,
+    return this.sendMessage(recipientPhone, {
+      type: 'interactive',
+      interactive: {
+        type: 'list',
+        ...(opts.headerText ? { header: { type: 'text', text: opts.headerText } } : {}),
+        body: { text: opts.bodyText },
+        ...(opts.footerText ? { footer: { text: opts.footerText } } : {}),
+        action: {
+          button: 'View options',
+          sections: opts.listOfSections,
+        },
+      },
     });
   }
 
@@ -166,7 +172,19 @@ export class WhatsAppService {
 
   async markMessageAsRead(messageId: string) {
     try {
-      await this.client.markMessageAsRead({ message_id: messageId });
+      const response = await fetch(`https://graph.facebook.com/${this.apiVersion}/${this.senderPhoneNumberId}/messages`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${this.accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          messaging_product: 'whatsapp',
+          status: 'read',
+          message_id: messageId,
+        }),
+      });
+      if (!response.ok) throw new Error(`Mark-as-read failed: ${response.status} ${await response.text()}`);
     } catch (err) {
       // The wrapper throws a non-retryable error if the message is missing or already read.
       // That's not a real failure for our purposes, so we swallow it rather than retry.
@@ -192,6 +210,7 @@ export class WhatsAppService {
       throw new Error(`Failed to resolve media URL: ${metaRes.status} ${await metaRes.text()}`);
     }
     const meta = (await metaRes.json()) as { url: string; mime_type?: string };
+    if (!meta.url) throw new Error('Meta returned no media URL. The media ID may have expired.');
     const fileRes = await fetch(meta.url, {
       headers: { Authorization: `Bearer ${this.accessToken}` },
     });
@@ -201,6 +220,92 @@ export class WhatsAppService {
     const buffer = Buffer.from(await fileRes.arrayBuffer());
     return { buffer, mimeType: meta.mime_type ?? 'application/octet-stream' };
   }
+
+  private async sendMessage(recipientPhone: string, payload: Record<string, unknown>) {
+    const response = await fetch(`https://graph.facebook.com/${this.apiVersion}/${this.senderPhoneNumberId}/messages`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${this.accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        messaging_product: 'whatsapp',
+        recipient_type: 'individual',
+        to: normalizePhone(recipientPhone),
+        ...payload,
+      }),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      const metaMessage = (data as { error?: { message?: string; code?: number; error_subcode?: number } })?.error;
+      throw new Error(metaMessage?.message
+        ? `Meta API error ${metaMessage.code ?? response.status}: ${metaMessage.message}`
+        : `Meta API error ${response.status}: ${JSON.stringify(data)}`);
+    }
+    return data;
+  }
+
+  private async sendMediaMessage(
+    recipientPhone: string,
+    type: 'image' | 'video' | 'audio' | 'document',
+    opts: MediaSendOptions,
+  ) {
+    const mediaPayload: Record<string, unknown> = {};
+    if (opts.caption && type !== 'audio') mediaPayload.caption = opts.caption;
+    if (type === 'document' && opts.filename) mediaPayload.filename = opts.filename;
+
+    if (opts.url) {
+      mediaPayload.link = opts.url;
+    } else if (opts.file_path) {
+      const mimeType = opts.mimeType || lookupMimeType(opts.filename ?? path.basename(opts.file_path)) || defaultMimeType(type);
+      const uploadedId = await this.uploadMedia(opts.file_path, mimeType, opts.filename ?? path.basename(opts.file_path));
+      mediaPayload.id = uploadedId;
+    } else {
+      throw new Error(`A ${type} requires a public URL or an uploaded file.`);
+    }
+
+    return this.sendMessage(recipientPhone, { type, [type]: mediaPayload });
+  }
+
+  private async uploadMedia(filePath: string, mimeType: string, filename: string): Promise<string> {
+    const buffer = await fs.readFile(filePath);
+    const form = new FormData();
+    form.append('messaging_product', 'whatsapp');
+    // Meta requires the MIME type both on the multipart file and as the explicit `type` field.
+    form.append('type', mimeType);
+    form.append('file', new Blob([buffer], { type: mimeType }), filename);
+
+    const response = await fetch(`https://graph.facebook.com/${this.apiVersion}/${this.senderPhoneNumberId}/media`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${this.accessToken}` },
+      body: form,
+    });
+    const data = (await response.json().catch(() => ({}))) as { id?: string; error?: { message?: string; code?: number } };
+    if (!response.ok || typeof data?.id !== 'string') {
+      const metaMessage = data.error;
+      throw new Error(metaMessage?.message
+        ? `Meta media upload error ${metaMessage.code ?? response.status}: ${metaMessage.message}`
+        : `Meta media upload error ${response.status}: ${JSON.stringify(data)}`);
+    }
+    return data.id;
+  }
+}
+
+type MediaSendOptions = {
+  url?: string;
+  file_path?: string;
+  mimeType?: string;
+  filename?: string;
+  caption?: string;
+};
+
+function defaultMimeType(type: 'image' | 'video' | 'audio' | 'document') {
+  return {
+    image: 'image/jpeg',
+    video: 'video/mp4',
+    audio: 'audio/ogg',
+    document: 'application/octet-stream',
+  }[type];
 }
 
 export function formatWhatsAppError(err: unknown): string {

@@ -139,11 +139,13 @@ for (const [path, method] of [
 
     let filePath = parsed.data.file_path;
     let originalFilename: string | undefined;
+    let mimeType: string | undefined;
     let cleanup: (() => void) | null = null;
     if (parsed.data.mediaId) {
       const [mediaRow] = await db.select().from(media).where(and(eq(media.id, parsed.data.mediaId), eq(media.businessId, businessId))).limit(1);
       if (!mediaRow) return res.status(404).json({ error: 'Uploaded media not found.' });
       originalFilename = mediaRow.filename;
+      mimeType = mediaRow.mimeType;
       try {
         const resolved = await materializeLocalFile(mediaRow.storagePath, mediaRow.storageProvider);
         filePath = resolved.filePath;
@@ -166,11 +168,14 @@ for (const [path, method] of [
       await (wa[method] as (phone: string, opts: unknown) => Promise<unknown>)(ctx.contact.waId, {
         url: parsed.data.url,
         file_path: filePath,
+        mimeType,
+        filename: originalFilename,
         caption: parsed.data.caption,
       });
       const saved = await recordOutbound(businessId, ctx.conversation.id, req.tenant!.userId, path, {
         url: parsed.data.url,
         filename: originalFilename,
+        mimeType,
         caption: parsed.data.caption,
         mediaId: parsed.data.mediaId,
       });
