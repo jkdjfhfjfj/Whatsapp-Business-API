@@ -1,18 +1,29 @@
 import crypto from 'node:crypto';
 
 // Encrypts/decrypts secrets (Meta access tokens, Groq API keys) at rest.
-// Key must be a 32-byte value, base64-encoded, set as CREDENTIALS_ENCRYPTION_KEY.
+// Prefer a 32-byte base64-encoded CREDENTIALS_ENCRYPTION_KEY. When it is not
+// configured, derive a separate encryption key from SESSION_SECRET so a fresh
+// deployment can save settings without a second required secret.
 
 function getKey(): Buffer {
   const raw = process.env.CREDENTIALS_ENCRYPTION_KEY;
-  if (!raw) {
-    throw new Error('CREDENTIALS_ENCRYPTION_KEY is not set.');
+  if (raw) {
+    const key = Buffer.from(raw, 'base64');
+    if (key.length !== 32) {
+      throw new Error('CREDENTIALS_ENCRYPTION_KEY must decode to exactly 32 bytes.');
+    }
+    return key;
   }
-  const key = Buffer.from(raw, 'base64');
-  if (key.length !== 32) {
-    throw new Error('CREDENTIALS_ENCRYPTION_KEY must decode to exactly 32 bytes.');
+
+  const sessionSecret = process.env.SESSION_SECRET;
+  if (!sessionSecret) {
+    throw new Error('Set SESSION_SECRET or CREDENTIALS_ENCRYPTION_KEY before saving credentials.');
   }
-  return key;
+
+  return crypto
+    .createHash('sha256')
+    .update(`whatsapp-business-api:credentials:${sessionSecret}`)
+    .digest();
 }
 
 export function encryptSecret(plaintext: string): string {
