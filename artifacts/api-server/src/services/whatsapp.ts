@@ -72,9 +72,26 @@ export class WhatsAppService {
   private apiVersion: string;
 
   constructor(credentials: WabaCredentials & { apiVersion?: string }) {
-    this.client = new WhatsappCloudAPI(credentials);
     this.accessToken = credentials.accessToken;
     this.apiVersion = credentials.apiVersion ?? 'v20.0';
+    // The wrapper calls this option graphAPIVersion. Passing apiVersion directly is
+    // ignored, which makes it fall back to its old v13.0 default.
+    this.client = new WhatsappCloudAPI({
+      ...credentials,
+      graphAPIVersion: this.apiVersion,
+    });
+  }
+
+  async verifyCredentials() {
+    const response = await fetch(`https://graph.facebook.com/${this.apiVersion}/${this.client.senderPhoneNumberId}?fields=id,display_phone_number`, {
+      headers: { Authorization: `Bearer ${this.accessToken}` },
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      const message = data?.error?.message ?? `Meta credential check failed with HTTP ${response.status}.`;
+      throw new Error(message);
+    }
+    return data;
   }
 
   async sendText(recipientPhone: string, message: string) {
@@ -184,4 +201,25 @@ export class WhatsAppService {
     const buffer = Buffer.from(await fileRes.arrayBuffer());
     return { buffer, mimeType: meta.mime_type ?? 'application/octet-stream' };
   }
+}
+
+export function formatWhatsAppError(err: unknown): string {
+  if (err instanceof Error && err.message) return err.message;
+  if (typeof err === 'string') return err;
+  if (err && typeof err === 'object') {
+    const value = err as { error?: unknown; message?: unknown };
+    if (typeof value.message === 'string' && value.message) return value.message;
+    if (typeof value.error === 'string' && value.error) return value.error;
+    if (value.error && typeof value.error === 'object') {
+      const nested = value.error as { message?: unknown; error_data?: { details?: unknown } };
+      if (typeof nested.message === 'string' && nested.message) return nested.message;
+      if (typeof nested.error_data?.details === 'string' && nested.error_data.details) return nested.error_data.details;
+    }
+    try {
+      return JSON.stringify(err);
+    } catch {
+      return 'WhatsApp request failed.';
+    }
+  }
+  return 'WhatsApp request failed.';
 }

@@ -5,6 +5,7 @@ import { conversations, contacts, messages, media } from '../db/schema.js';
 import { eq, and } from 'drizzle-orm';
 import { requireAuth } from '../auth/middleware.js';
 import { getWhatsAppClientForBusiness } from '../services/getWhatsAppClient.js';
+import { formatWhatsAppError } from '../services/whatsapp.js';
 import { broadcastToBusiness } from '../services/websocket.js';
 import { materializeLocalFile } from '../services/storage.js';
 
@@ -50,7 +51,7 @@ messagesRouter.post('/text', async (req, res) => {
     const saved = await recordOutbound(businessId, ctx.conversation.id, req.session.userId!, 'text', { text: parsed.data.message });
     res.json(saved);
   } catch (err) {
-    res.status(400).json({ error: (err as Error).message });
+    res.status(400).json({ error: formatWhatsAppError(err) });
   }
 });
 
@@ -79,7 +80,7 @@ messagesRouter.post('/buttons', async (req, res) => {
     });
     res.json(saved);
   } catch (err) {
-    res.status(400).json({ error: (err as Error).message });
+    res.status(400).json({ error: formatWhatsAppError(err) });
   }
 });
 
@@ -111,7 +112,7 @@ messagesRouter.post('/list', async (req, res) => {
     const saved = await recordOutbound(businessId, ctx.conversation.id, req.session.userId!, 'interactive_list', opts);
     res.json(saved);
   } catch (err) {
-    res.status(400).json({ error: (err as Error).message });
+    res.status(400).json({ error: formatWhatsAppError(err) });
   }
 });
 
@@ -178,7 +179,7 @@ for (const [path, method] of [
       }
       res.json(saved);
     } catch (err) {
-      res.status(400).json({ error: (err as Error).message });
+      res.status(400).json({ error: formatWhatsAppError(err) });
     } finally {
       cleanup?.();
     }

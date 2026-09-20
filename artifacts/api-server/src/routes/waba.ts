@@ -5,7 +5,7 @@ import { wabaSettings } from '../db/schema.js';
 import { eq } from 'drizzle-orm';
 import { requireAuth, requireRole } from '../auth/middleware.js';
 import { encryptSecret, maskSecret, decryptSecret } from '../services/crypto.js';
-import { WhatsAppService } from '../services/whatsapp.js';
+import { WhatsAppService, formatWhatsAppError } from '../services/whatsapp.js';
 
 export const wabaRouter = Router();
 wabaRouter.use(requireAuth);
@@ -79,10 +79,11 @@ wabaRouter.post('/test-connection', requireRole('owner', 'admin'), async (req, r
     if (testRecipientPhone) {
       await wa.sendText(testRecipientPhone, 'This is a test message from your WhatsApp support platform. Setup looks good! ✅');
     }
+    await wa.verifyCredentials();
     await db.update(wabaSettings).set({ connectionStatus: 'connected' }).where(eq(wabaSettings.businessId, businessId));
     res.json({ status: 'connected' });
   } catch (err) {
     await db.update(wabaSettings).set({ connectionStatus: 'api_error' }).where(eq(wabaSettings.businessId, businessId));
-    res.status(400).json({ status: 'api_error', error: (err as Error).message });
+    res.status(400).json({ status: 'api_error', error: formatWhatsAppError(err) });
   }
 });
