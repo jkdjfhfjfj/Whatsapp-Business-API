@@ -102,7 +102,13 @@ uploadsRouter.get('/for-message/:messageId', async (req, res) => {
     .limit(1);
   if (!msg) return res.status(404).json({ error: 'Message not found.' });
 
-  const whatsappMediaId = (msg.content as { id?: string }).id;
+  const content = (msg.content ?? {}) as Record<string, any>;
+  const nestedMedia = ['image', 'video', 'audio', 'document', 'sticker']
+    .map((kind) => content[kind] ?? content.body?.[kind])
+    .find((value) => value && typeof value === 'object');
+  const whatsappMediaId = content.id
+    ?? content.body?.id
+    ?? nestedMedia?.id;
   if (!whatsappMediaId) return res.status(400).json({ error: 'This message has no downloadable media.' });
 
   const wa = await getWhatsAppClientForBusiness(businessId);

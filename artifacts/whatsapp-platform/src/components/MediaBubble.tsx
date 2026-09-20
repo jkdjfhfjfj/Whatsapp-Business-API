@@ -1,12 +1,15 @@
 import { useEffect, useState } from 'react';
 import { FileText, Download } from 'lucide-react';
 import { api, mediaUrl } from '../api';
+import { mediaContent, normalizedMessageType } from '../messageTypes';
 
 // Inbound messages only carry a WhatsApp media id until viewed (Meta's URLs expire fast), so we
 // resolve+cache it through /api/uploads/for-message the first time this bubble renders.
 // Outbound messages already know their local mediaId from the send response.
 export default function MediaBubble({ message }: { message: any }) {
-  const [mediaId, setMediaId] = useState<string | null>(message.content?.mediaId ?? null);
+  const type = normalizedMessageType(message);
+  const content = mediaContent(message, type as any);
+  const [mediaId, setMediaId] = useState<string | null>(message.content?.mediaId ?? message.content?.body?.mediaId ?? null);
   const [mimeType, setMimeType] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -25,9 +28,9 @@ export default function MediaBubble({ message }: { message: any }) {
   }
 
   const url = mediaUrl(mediaId);
-  const caption = message.content?.caption;
+  const caption = content?.caption;
 
-  switch (message.type) {
+  switch (type) {
     case 'image':
       return (
         <div className="media-bubble">
@@ -50,9 +53,9 @@ export default function MediaBubble({ message }: { message: any }) {
       );
     case 'document':
       return (
-        <a className="media-bubble media-document" href={url} download={message.content?.filename ?? true} target="_blank" rel="noreferrer">
+          <a className="media-bubble media-document" href={url} download={content?.filename ?? true} target="_blank" rel="noreferrer">
           <FileText size={22} />
-          <span>{message.content?.filename ?? 'Document'}</span>
+          <span>{content?.filename ?? 'Document'}</span>
           <Download size={16} />
         </a>
       );

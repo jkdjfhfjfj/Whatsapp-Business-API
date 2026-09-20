@@ -2,29 +2,14 @@ import { useEffect, useRef } from 'react';
 import { Check, CheckCheck, Clock, AlertTriangle, ArrowLeft, MapPin, PanelRight } from 'lucide-react';
 import Avatar from './Avatar';
 import MediaBubble from './MediaBubble';
+import { messageText, normalizedMessageType } from '../messageTypes';
 
 function renderContent(msg: any) {
-  // Older webhook rows may contain the wrapper's public message names. Keep rendering
-  // those rows after the server normalizes new inbound messages for storage.
-  const type = msg.type === 'text_message' || msg.type === 'ad_message'
-    ? 'text'
-    : msg.type === 'media_message'
-      ? ['image', 'video', 'audio', 'document'].find((kind) => msg.content?.[kind]) ?? 'unknown'
-      : msg.type === 'audio_message'
-        ? 'audio'
-        : msg.type === 'sticker_message'
-          ? 'image'
-          : msg.type === 'location_message'
-            ? 'location'
-            : msg.type === 'contact_message'
-              ? 'contact'
-              : msg.type === 'quick_reply_message'
-                ? 'button'
-                : msg.type;
+  const type = normalizedMessageType(msg);
 
   switch (type) {
     case 'text':
-      return <p>{msg.content.text ?? msg.content.body?.text ?? ''}</p>;
+      return <p>{messageText(msg)}</p>;
     case 'button': // inbound: customer tapped one of our buttons
     case 'list': // inbound: customer picked a list option
       return <p className="reply-echo">↳ {msg.content.title ?? msg.content.id}</p>;
@@ -58,7 +43,7 @@ function renderContent(msg: any) {
     case 'document':
       return <MediaBubble message={msg} />;
     default:
-      return <p className="unsupported">Unsupported message type: {msg.type}</p>;
+      return <p className="unsupported">Unsupported message type: {msg.type ?? 'unknown'}</p>;
   }
 }
 

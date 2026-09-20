@@ -86,7 +86,7 @@ export class WhatsAppService {
     const response = await fetch(`https://graph.facebook.com/${this.apiVersion}/${this.client.senderPhoneNumberId}?fields=id,display_phone_number`, {
       headers: { Authorization: `Bearer ${this.accessToken}` },
     });
-    const data = await response.json().catch(() => ({}));
+    const data = (await response.json().catch(() => ({}))) as { error?: { message?: string } };
     if (!response.ok) {
       const message = data?.error?.message ?? `Meta credential check failed with HTTP ${response.status}.`;
       throw new Error(message);
