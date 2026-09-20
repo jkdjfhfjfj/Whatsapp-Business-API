@@ -11,6 +11,7 @@ export async function getWhatsAppClientForBusiness(businessId: string): Promise<
     accessToken: decryptSecret(row.accessTokenEnc),
     senderPhoneNumberId: row.phoneNumberId,
     WABA_ID: row.wabaId,
+    appId: row.appId ?? undefined,
     apiVersion: row.apiVersion ?? 'v20.0',
   });
 }

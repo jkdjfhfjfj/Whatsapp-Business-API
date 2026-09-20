@@ -18,6 +18,7 @@ export interface WabaCredentials {
   accessToken: string;
   senderPhoneNumberId: string;
   WABA_ID: string;
+  appId?: string;
 }
 
 export interface SimpleButton {
@@ -82,11 +83,13 @@ export class WhatsAppService {
   private accessToken: string;
   private apiVersion: string;
   private senderPhoneNumberId: string;
+  private appId?: string;
 
   constructor(credentials: WabaCredentials & { apiVersion?: string }) {
     this.accessToken = normalizeAccessToken(credentials.accessToken);
     this.apiVersion = credentials.apiVersion ?? 'v20.0';
     this.senderPhoneNumberId = credentials.senderPhoneNumberId;
+    this.appId = credentials.appId;
     // The wrapper calls this option graphAPIVersion. Passing apiVersion directly is
     // ignored, which makes it fall back to its old v13.0 default.
     this.client = new WhatsappCloudAPI({
@@ -105,6 +108,70 @@ export class WhatsAppService {
       throw new Error(message);
     }
     return data;
+  }
+
+  async getBusinessProfile() {
+    const response = await fetch(
+      `https://graph.facebook.com/${this.apiVersion}/${this.senderPhoneNumberId}/whatsapp_business_profile?fields=about,address,description,email,profile_picture_url,websites,vertical`,
+      { headers: { Authorization: `Bearer ${this.accessToken}` } },
+    );
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(formatMetaApiError('read business profile', response.status, data));
+    return data?.data?.[0] ?? data;
+  }
+
+  async updateBusinessProfile(profile: {
+    about?: string;
+    address?: string;
+    description?: string;
+    email?: string;
+    vertical?: string;
+    websites?: string[];
+    profilePictureHandle?: string;
+  }) {
+    const payload = {
+      messaging_product: 'whatsapp',
+      ...(profile.about !== undefined ? { about: profile.about } : {}),
+      ...(profile.address !== undefined ? { address: profile.address } : {}),
+      ...(profile.description !== undefined ? { description: profile.description } : {}),
+      ...(profile.email !== undefined ? { email: profile.email } : {}),
+      ...(profile.vertical !== undefined ? { vertical: profile.vertical } : {}),
+      ...(profile.websites !== undefined ? { websites: profile.websites } : {}),
+      ...(profile.profilePictureHandle ? { profile_picture_handle: profile.profilePictureHandle } : {}),
+    };
+    return this.sendGraphRequest(`/${this.senderPhoneNumberId}/whatsapp_business_profile`, 'POST', payload);
+  }
+
+  async uploadBusinessProfilePicture(filePath: string, mimeType: string, filename: string) {
+    if (!this.appId) throw new Error('Meta App ID is required to upload a business profile picture.');
+    const buffer = await fs.readFile(filePath);
+    const sessionUrl = new URL(`https://graph.facebook.com/${this.apiVersion}/${this.appId}/uploads`);
+    sessionUrl.searchParams.set('file_length', String(buffer.length));
+    sessionUrl.searchParams.set('file_type', mimeType);
+    sessionUrl.searchParams.set('file_name', filename);
+    const sessionResponse = await fetch(sessionUrl, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${this.accessToken}` },
+    });
+    const sessionData = await sessionResponse.json().catch(() => ({})) as { id?: string };
+    if (!sessionResponse.ok || !sessionData.id) {
+      throw new Error(formatMetaApiError('create profile picture upload session', sessionResponse.status, sessionData));
+    }
+
+    const uploadResponse = await fetch(`https://graph.facebook.com/${this.apiVersion}/${sessionData.id}`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${this.accessToken}`,
+        'file_offset': '0',
+        'Content-Type': mimeType,
+      },
+      body: buffer,
+    });
+    const uploadData = await uploadResponse.json().catch(() => ({})) as { h?: string };
+    if (!uploadResponse.ok || !uploadData.h) {
+      throw new Error(formatMetaApiError('upload profile picture', uploadResponse.status, uploadData));
+    }
+    return uploadData.h;
   }
 
   async sendText(recipientPhone: string, message: string) {
@@ -234,21 +301,25 @@ export class WhatsAppService {
   }
 
   private async sendMessage(recipientPhone: string, payload: Record<string, unknown>) {
-    const response = await fetch(`https://graph.facebook.com/${this.apiVersion}/${this.senderPhoneNumberId}/messages`, {
-      method: 'POST',
+    return this.sendGraphRequest(`/${this.senderPhoneNumberId}/messages`, 'POST', {
+      messaging_product: 'whatsapp',
+      recipient_type: 'individual',
+      to: normalizePhone(recipientPhone),
+      ...payload,
+    }, 'send message');
+  }
+
+  private async sendGraphRequest(pathname: string, method: 'GET' | 'POST', payload?: Record<string, unknown>, operation = 'send message') {
+    const response = await fetch(`https://graph.facebook.com/${this.apiVersion}${pathname}`, {
+      method,
       headers: {
         Authorization: `Bearer ${this.accessToken}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        messaging_product: 'whatsapp',
-        recipient_type: 'individual',
-        to: normalizePhone(recipientPhone),
-        ...payload,
-      }),
+      ...(payload ? { body: JSON.stringify(payload) } : {}),
     });
     const data = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(formatMetaApiError('send message', response.status, data));
+    if (!response.ok) throw new Error(formatMetaApiError(operation, response.status, data));
     return data;
   }
 
