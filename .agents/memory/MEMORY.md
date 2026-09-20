@@ -1,1 +1,2 @@
 - [Credential encryption continuity](credential-encryption-continuity.md) — keep the stable encryption secret when removing browser auth or existing WABA credentials become unreadable.
+- [Fresh workspace bootstrap](fresh-workspace-bootstrap.md) — after a reset, restore workspace dependencies and apply the API database schema before debugging settings endpoints.
