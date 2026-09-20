@@ -8,6 +8,7 @@ export default function Settings() {
   const [location] = useLocation();
   const tabs = [
     ['waba', 'WhatsApp'],
+    ['storage', 'Storage'],
     ['ai', 'AI'],
     ['tags', 'Tags'],
     ['quick-replies', 'Quick Replies'],
@@ -21,10 +22,95 @@ export default function Settings() {
       </nav>
       <div className="settings-content">
         {location.endsWith('/ai') ? <AiSettings />
+          : location.endsWith('/storage') ? <StorageSettings />
           : location.endsWith('/tags') ? <TagsSettings />
             : location.endsWith('/quick-replies') ? <QuickRepliesSettings />
               : <WabaSettings />}
       </div>
+    </div>
+  );
+}
+
+function StorageSettings() {
+  const toast = useToast();
+  const [form, setForm] = useState<any>({ provider: 'local' });
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [testing, setTesting] = useState(false);
+  const [status, setStatus] = useState<string | null>(null);
+
+  useEffect(() => {
+    api.getStorage().then((d) => setForm(d ?? { provider: 'local' })).catch(() => setLoadError(true)).finally(() => setLoading(false));
+  }, []);
+
+  async function save() {
+    setSaving(true);
+    try {
+      await api.updateStorage(form);
+      const refreshed = await api.getStorage();
+      setForm(refreshed ?? { provider: 'local' });
+      toast('Storage settings saved.', 'success');
+    } catch (err) {
+      toast((err as Error).message, 'error');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function test() {
+    setTesting(true);
+    setStatus('testing');
+    try {
+      const result = await api.testStorage(form);
+      setStatus(result.status);
+      toast(result.status === 'connected' ? 'Storage connection successful.' : `Status: ${result.status}`, result.status === 'connected' ? 'success' : 'error');
+    } catch (err) {
+      setStatus('api_error');
+      toast((err as Error).message, 'error');
+    } finally {
+      setTesting(false);
+    }
+  }
+
+  if (loading) return <div className="settings-card"><div className="empty-state">Loading storage settings</div></div>;
+  if (loadError) return <div className="settings-card"><div className="empty-state"><strong>Storage settings could not load</strong><button className="primary-action" onClick={() => window.location.reload()}>Retry</button></div></div>;
+
+  return (
+    <div className="settings-card">
+      <h2>Media storage</h2>
+      <p className="subtext">
+        Choose where uploaded and inbound WhatsApp media is stored. Cloudinary keeps media independent
+        of the Render disk and is tested with a temporary upload.
+      </p>
+
+      <label>Provider
+        <select value={form.provider ?? 'local'} onChange={(e) => setForm({ ...form, provider: e.target.value })}>
+          <option value="local">Render persistent disk</option>
+          <option value="cloudinary">Cloudinary API</option>
+          <option value="github">GitHub Contents API</option>
+        </select>
+      </label>
+
+      {form.provider === 'cloudinary' && (
+        <>
+          <label>Cloudinary cloud name
+            <input value={form.cloudName ?? ''} onChange={(e) => setForm({ ...form, cloudName: e.target.value })} placeholder="your-cloud-name" />
+          </label>
+          <label>Cloudinary API key
+            <input value={form.apiKey ?? ''} onChange={(e) => setForm({ ...form, apiKey: e.target.value })} placeholder="123456789012345" />
+          </label>
+          <label>Cloudinary API secret {form.apiSecretMasked && <span className="masked">({form.apiSecretMasked} saved)</span>}
+            <input type="password" placeholder="Enter to replace" onChange={(e) => setForm({ ...form, apiSecret: e.target.value })} />
+          </label>
+        </>
+      )}
+
+      <div className="row-with-button">
+        <button onClick={save} disabled={saving}>{saving ? 'Saving…' : 'Save storage settings'}</button>
+        <button type="button" onClick={test} disabled={testing}>{testing ? 'Testing…' : 'Test storage API'}</button>
+      </div>
+      {status && <div className={`status-banner ${status}`}>Status: {status}</div>}
     </div>
   );
 }

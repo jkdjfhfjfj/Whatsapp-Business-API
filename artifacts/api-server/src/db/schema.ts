@@ -45,6 +45,16 @@ export const wabaSettings = pgTable('waba_settings', {
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 });
 
+export const storageSettings = pgTable('storage_settings', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  businessId: uuid('business_id').notNull(),
+  provider: text('provider').notNull().default('local'), // local|github|cloudinary
+  cloudName: text('cloud_name'),
+  apiKey: text('api_key'),
+  apiSecretEnc: text('api_secret_enc'),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+});
+
 export const aiSettings = pgTable('ai_settings', {
   id: uuid('id').primaryKey().defaultRandom(),
   businessId: uuid('business_id').notNull(),

@@ -36,6 +36,11 @@ export const api = {
   testWabaConnection: (body: { testRecipientPhone?: string }) =>
     request<{ status: string; error?: string }>('/api/waba/test-connection', { method: 'POST', body: JSON.stringify(body) }),
 
+  getStorage: () => request<any>('/api/storage'),
+  updateStorage: (body: Record<string, unknown>) => request('/api/storage', { method: 'PUT', body: JSON.stringify(body) }),
+  testStorage: (body: Record<string, unknown>) =>
+    request<{ status: string; error?: string }>('/api/storage/test', { method: 'POST', body: JSON.stringify(body) }),
+
   getAiSettings: () => request<any>('/api/ai'),
   updateAiSettings: (body: Record<string, unknown>) => request('/api/ai', { method: 'PUT', body: JSON.stringify(body) }),
   testGroqKey: (apiKey: string) => request<{ ok: boolean }>('/api/ai/test-key', { method: 'POST', body: JSON.stringify({ apiKey }) }),

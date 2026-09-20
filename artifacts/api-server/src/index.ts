@@ -15,6 +15,7 @@ import morgan from 'morgan';
 import { pool } from './db/client.js';
 import { authRouter } from './routes/auth.js';
 import { wabaRouter } from './routes/waba.js';
+import { storageRouter } from './routes/storage.js';
 import { aiRouter } from './routes/ai.js';
 import { conversationsRouter } from './routes/conversations.js';
 import { messagesRouter } from './routes/messages.js';
@@ -60,6 +61,7 @@ app.get('/health', async (_req, res) => {
 
 app.use('/api/auth', authRouter);
 app.use('/api/waba', wabaRouter);
+app.use('/api/storage', storageRouter);
 app.use('/api/ai', aiRouter);
 app.use('/api/conversations', conversationsRouter);
 app.use('/api/messages', messagesRouter);

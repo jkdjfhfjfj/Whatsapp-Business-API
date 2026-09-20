@@ -45,6 +45,7 @@ media handling, AI replies, and WABA settings. It is a single-workspace app with
 - Text, document, image, video, and audio handling
 - AI reply settings and human takeover
 - WABA connection and webhook settings
+- Selectable media storage: Render disk, Cloudinary API, or GitHub Contents API
 - Tags, notes, quick replies, agents, and dashboard metrics
 
 ## User preferences
@@ -73,6 +74,17 @@ _Populate as you build — explicit user instructions worth remembering across s
    verify token, verify it, and subscribe the app to the `messages` webhook field.
 6. Use Test connection before sending. For inbound media, the token must be valid for the same
    WABA and phone number and include WhatsApp Business messaging permissions.
+
+### Cloudinary media storage
+
+Open Settings → Storage, choose **Cloudinary API**, enter the Cloudinary cloud name, API key, and
+API secret, then use **Test storage API** before saving or after saving. The API secret is encrypted
+at rest and is never returned to the browser. Cloudinary uploads are used for both outbound
+attachments and cached inbound WhatsApp media.
+
+Render environment variables can also configure Cloudinary without the Settings screen:
+`STORAGE_PROVIDER=cloudinary`, `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, and
+`CLOUDINARY_API_SECRET`. Database settings take precedence when configured.
 
 The Render service serves the built frontend and API from one process. The required public paths are
 `/api`, `/webhook`, `/ws`, and `/health`. The persistent disk prevents uploaded and downloaded media

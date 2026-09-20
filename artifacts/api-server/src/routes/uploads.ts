@@ -8,7 +8,7 @@ import { media, messages } from '../db/schema.js';
 import { eq, and } from 'drizzle-orm';
 import { requireAuth } from '../auth/middleware.js';
 import { getWhatsAppClientForBusiness } from '../services/getWhatsAppClient.js';
-import { saveMedia, readMedia, activeStorageProvider } from '../services/storage.js';
+import { saveMedia, readMedia, getStorageConfig } from '../services/storage.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -30,8 +30,8 @@ const upload = multer({
 export const uploadsRouter = Router();
 uploadsRouter.use(requireAuth);
 
-uploadsRouter.get('/storage-info', (_req, res) => {
-  res.json({ provider: activeStorageProvider });
+uploadsRouter.get('/storage-info', async (req, res) => {
+  res.json({ provider: (await getStorageConfig(req.tenant!.businessId)).provider });
 });
 
 // Agent uploads a file to attach to an outbound message. Returns a media record whose
@@ -41,7 +41,7 @@ uploadsRouter.post('/', upload.single('file'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file uploaded.' });
 
   try {
-    const { storagePath, provider } = await saveMedia(req.file.buffer, req.file.originalname, MEDIA_STORAGE_DIR);
+    const { storagePath, provider } = await saveMedia(req.file.buffer, req.file.originalname, MEDIA_STORAGE_DIR, businessId);
     const [row] = await db
       .insert(media)
       .values({
@@ -73,7 +73,7 @@ uploadsRouter.get('/:id/content', async (req, res) => {
   if (!row) return res.status(404).json({ error: 'Media not found.' });
 
   try {
-    const buffer = await readMedia(row.storagePath, row.storageProvider);
+    const buffer = await readMedia(row.storagePath, row.storageProvider, businessId);
     res.setHeader('Content-Type', row.mimeType);
     res.setHeader('Cache-Control', 'private, max-age=3600');
     res.send(buffer);
@@ -117,7 +117,7 @@ uploadsRouter.get('/for-message/:messageId', async (req, res) => {
   try {
     const { buffer, mimeType } = await wa.downloadMedia(whatsappMediaId);
     const ext = mimeType.split('/')[1]?.split(';')[0] ?? 'bin';
-    const { storagePath, provider } = await saveMedia(buffer, `inbound.${ext}`, MEDIA_STORAGE_DIR);
+    const { storagePath, provider } = await saveMedia(buffer, `inbound.${ext}`, MEDIA_STORAGE_DIR, businessId);
 
     const [row] = await db
       .insert(media)

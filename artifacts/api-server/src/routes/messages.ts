@@ -147,7 +147,7 @@ for (const [path, method] of [
       originalFilename = mediaRow.filename;
       mimeType = mediaRow.mimeType;
       try {
-        const resolved = await materializeLocalFile(mediaRow.storagePath, mediaRow.storageProvider);
+         const resolved = await materializeLocalFile(mediaRow.storagePath, mediaRow.storageProvider, businessId);
         filePath = resolved.filePath;
         cleanup = resolved.cleanup;
       } catch (err) {
