@@ -11,6 +11,7 @@ services:
         value: production
       - key: DATABASE_URL
         sync: false
+      # This key encrypts stored Meta/Groq credentials. It is not used for browser authentication.
       - key: SESSION_SECRET
         sync: false
       - key: WHATSAPP_VERIFY_TOKEN

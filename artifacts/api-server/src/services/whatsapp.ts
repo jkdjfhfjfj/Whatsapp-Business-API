@@ -206,16 +206,17 @@ export class WhatsAppService {
     const metaRes = await fetch(`https://graph.facebook.com/${this.apiVersion}/${mediaId}`, {
       headers: { Authorization: `Bearer ${this.accessToken}` },
     });
+    const metaData = (await metaRes.json().catch(() => ({}))) as { url?: string; mime_type?: string; error?: { message?: string; code?: number } };
     if (!metaRes.ok) {
-      throw new Error(`Failed to resolve media URL: ${metaRes.status} ${await metaRes.text()}`);
+      throw new Error(formatMetaApiError('resolve media URL', metaRes.status, metaData));
     }
-    const meta = (await metaRes.json()) as { url: string; mime_type?: string };
+    const meta = metaData as { url?: string; mime_type?: string };
     if (!meta.url) throw new Error('Meta returned no media URL. The media ID may have expired.');
     const fileRes = await fetch(meta.url, {
       headers: { Authorization: `Bearer ${this.accessToken}` },
     });
     if (!fileRes.ok) {
-      throw new Error(`Failed to download media: ${fileRes.status}`);
+      throw new Error(`Failed to download media: ${fileRes.status}${fileRes.status === 401 ? ' — Meta rejected the access token while downloading the file.' : ''}`);
     }
     const buffer = Buffer.from(await fileRes.arrayBuffer());
     return { buffer, mimeType: meta.mime_type ?? 'application/octet-stream' };
@@ -236,12 +237,7 @@ export class WhatsAppService {
       }),
     });
     const data = await response.json().catch(() => ({}));
-    if (!response.ok) {
-      const metaMessage = (data as { error?: { message?: string; code?: number; error_subcode?: number } })?.error;
-      throw new Error(metaMessage?.message
-        ? `Meta API error ${metaMessage.code ?? response.status}: ${metaMessage.message}`
-        : `Meta API error ${response.status}: ${JSON.stringify(data)}`);
-    }
+    if (!response.ok) throw new Error(formatMetaApiError('send message', response.status, data));
     return data;
   }
 
@@ -282,10 +278,7 @@ export class WhatsAppService {
     });
     const data = (await response.json().catch(() => ({}))) as { id?: string; error?: { message?: string; code?: number } };
     if (!response.ok || typeof data?.id !== 'string') {
-      const metaMessage = data.error;
-      throw new Error(metaMessage?.message
-        ? `Meta media upload error ${metaMessage.code ?? response.status}: ${metaMessage.message}`
-        : `Meta media upload error ${response.status}: ${JSON.stringify(data)}`);
+      throw new Error(formatMetaApiError('upload media', response.status, data));
     }
     return data.id;
   }
@@ -306,6 +299,16 @@ function defaultMimeType(type: 'image' | 'video' | 'audio' | 'document') {
     audio: 'audio/ogg',
     document: 'application/octet-stream',
   }[type];
+}
+
+function formatMetaApiError(operation: string, status: number, data: unknown): string {
+  const metaError = (data as { error?: { message?: string; code?: number } })?.error;
+  if (status === 401 || metaError?.code === 190) {
+    return `Meta rejected the access token while trying to ${operation} (OAuth error 190). Replace the Permanent Access Token in Settings → WhatsApp, then save and test the connection.`;
+  }
+  return metaError?.message
+    ? `Meta API error ${metaError.code ?? status}: ${metaError.message}`
+    : `Meta API error ${status}: ${JSON.stringify(data)}`;
 }
 
 export function formatWhatsAppError(err: unknown): string {

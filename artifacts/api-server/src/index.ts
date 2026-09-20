@@ -82,7 +82,7 @@ if (fs.existsSync(clientDist)) {
   app.use(express.static(clientDist));
   // SPA fallback: any non-API, non-webhook GET request returns index.html so client-side
   // routing (React Router) works on a full page load/refresh.
-  app.get(/^(?!\/api|\/webhook|\/health).*/, (_req, res) => {
+  app.get(/^(?!\/api|\/webhook|\/health|\/ws).*/, (_req, res) => {
     res.sendFile(path.join(clientDist, 'index.html'));
   });
 }

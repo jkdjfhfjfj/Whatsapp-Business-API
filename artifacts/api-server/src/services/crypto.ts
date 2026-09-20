@@ -2,8 +2,8 @@ import crypto from 'node:crypto';
 
 // Encrypts/decrypts secrets (Meta access tokens, Groq API keys) at rest.
 // Prefer a 32-byte base64-encoded CREDENTIALS_ENCRYPTION_KEY. When it is not
-// configured, derive a separate encryption key from SESSION_SECRET so a fresh
-// deployment can save settings without a second required secret.
+// configured, derive the key from SESSION_SECRET for compatibility with existing
+// deployments. SESSION_SECRET is no longer used for browser authentication.
 
 function getKey(): Buffer {
   const raw = process.env.CREDENTIALS_ENCRYPTION_KEY;
