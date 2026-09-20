@@ -161,13 +161,29 @@ async function handleInboundMessage(businessId: string, wa: Awaited<ReturnType<t
 function extractContent(incoming: any): { type: string; body: Record<string, unknown> } {
   switch (incoming.type) {
     case 'text':
+    case 'text_message':
+    case 'ad_message':
       return { type: 'text', body: { text: incoming.text?.body ?? '' } };
     case 'simple_button_message':
+    case 'quick_reply_message':
       return { type: 'button', body: { id: incoming.button_reply?.id, title: incoming.button_reply?.title } };
     case 'radio_button_message':
       return { type: 'list', body: { id: incoming.list_reply?.id, title: incoming.list_reply?.title } };
     case 'location':
+    case 'location_message':
       return { type: 'location', body: incoming.location ?? {} };
+    case 'contact_message':
+      return { type: 'contact', body: { contacts: incoming.contacts ?? [] } };
+    case 'media_message': {
+      const mediaType = ['image', 'video', 'audio', 'document'].find((type) => incoming[type]);
+      return mediaType
+        ? { type: mediaType, body: incoming[mediaType] }
+        : { type: 'unknown', body: incoming };
+    }
+    case 'audio_message':
+      return { type: 'audio', body: incoming.audio ?? {} };
+    case 'sticker_message':
+      return { type: 'image', body: incoming.sticker ?? {} };
     case 'image':
     case 'video':
     case 'audio':
