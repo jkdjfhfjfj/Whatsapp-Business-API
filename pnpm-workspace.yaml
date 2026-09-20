@@ -75,6 +75,10 @@ onlyBuiltDependencies:
   - unrs-resolver
 
 overrides:
+  # whatsappcloudapi_wrapper still pulls request's obsolete form-data 2.x tarball,
+  # which is blocked by Replit's package firewall. The wrapper only needs the
+  # compatible multipart API, so resolve it to the maintained release.
+  form-data: "4.0.4"
   # replit uses linux-x64 only, we can exclude all other platforms
   "esbuild>@esbuild/darwin-arm64": "-"
   "esbuild>@esbuild/darwin-x64": "-"
