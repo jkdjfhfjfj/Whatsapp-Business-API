@@ -25,7 +25,7 @@ conversationsRouter.get('/', async (req, res) => {
     .select({
       conversation: conversations,
       contact: contacts,
-      tagNames: sql<string[]>`coalesce(array_agg(${tags.name}) filter (where ${tags.name} is not null), '{}')`,
+      tagNames: sql<string[]>`coalesce(array_agg(distinct ${tags.name}) filter (where ${tags.name} is not null), '{}')`,
     })
     .from(conversations)
     .innerJoin(contacts, eq(conversations.contactId, contacts.id))

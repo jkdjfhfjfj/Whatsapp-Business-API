@@ -18,7 +18,13 @@ const createSchema = z.object({ shortcut: z.string().min(1), message: z.string()
 quickRepliesRouter.post('/', async (req, res) => {
   const parsed = createSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
-  const [row] = await db.insert(quickReplies).values({ businessId: req.session.businessId!, ...parsed.data }).returning();
+  const shortcut = parsed.data.shortcut.trim().replace(/^\/+/, '');
+  if (!shortcut) return res.status(400).json({ error: 'Shortcut must contain at least one character.' });
+  const [row] = await db.insert(quickReplies).values({
+    businessId: req.session.businessId!,
+    ...parsed.data,
+    shortcut: `/${shortcut}`,
+  }).returning();
   res.json(row);
 });
 

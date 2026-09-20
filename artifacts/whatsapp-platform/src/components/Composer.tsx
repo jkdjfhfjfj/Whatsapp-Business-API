@@ -129,7 +129,7 @@ export default function Composer({ conversationId, disabled, disabledReason, onS
   }
 
   const filteredQuickReplies = quickReplyFilter !== null
-    ? quickReplies.filter((q) => q.shortcut.toLowerCase().includes(quickReplyFilter.toLowerCase()))
+    ? quickReplies.filter((q) => q.shortcut.replace(/^\/+/, '').toLowerCase().startsWith(quickReplyFilter.toLowerCase()))
     : [];
 
   return (
