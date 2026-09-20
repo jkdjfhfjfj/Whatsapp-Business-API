@@ -135,8 +135,14 @@ function AiSettings() {
   async function testKey() {
     if (!form.groqApiKey) { toast('Enter a key first.', 'error'); return; }
     setKeyTest('testing');
-    const { ok } = await api.testGroqKey(form.groqApiKey);
-    setKeyTest(ok ? 'valid' : 'invalid');
+    try {
+      const { ok } = await api.testGroqKey(form.groqApiKey);
+      setKeyTest(ok ? 'valid' : 'invalid');
+      if (!ok) toast('Groq rejected this API key.', 'error');
+    } catch (err) {
+      setKeyTest('invalid');
+      toast((err as Error).message, 'error');
+    }
   }
 
   async function loadModels() {

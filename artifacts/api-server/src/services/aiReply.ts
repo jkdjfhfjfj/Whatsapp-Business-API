@@ -4,6 +4,7 @@ import { eq, desc } from 'drizzle-orm';
 import { decryptSecret } from './crypto.js';
 import { compileSystemPrompt, generateReply, type GroqChatMessage } from './groq.js';
 import type { WhatsAppService } from './whatsapp.js';
+import { formatWhatsAppError } from './whatsapp.js';
 import { broadcastToBusiness } from './websocket.js';
 
 const HISTORY_LIMIT = 12;
@@ -26,12 +27,18 @@ export async function maybeGenerateAiReply(opts: {
     .orderBy(desc(messages.createdAt))
     .limit(HISTORY_LIMIT);
 
+  if (settings.pauseAfterHumanReply) {
+    const latestHumanReply = recentMessages.find((message) => message.direction === 'outbound' && message.senderType === 'agent');
+    const latestInbound = recentMessages.find((message) => message.direction === 'inbound');
+    if (latestHumanReply && latestInbound && latestHumanReply.createdAt > latestInbound.createdAt) return;
+  }
+
   const history: GroqChatMessage[] = recentMessages
     .reverse()
-    .filter((m) => m.type === 'text')
+    .filter((m) => m.type === 'text' || m.type === 'text_message' || m.type === 'ad_message')
     .map((m) => ({
       role: m.direction === 'inbound' ? 'user' : 'assistant',
-      content: (m.content as { text?: string }).text ?? '',
+      content: getTextContent(m.content),
     }));
 
   const systemPrompt = compileSystemPrompt({
@@ -55,7 +62,27 @@ export async function maybeGenerateAiReply(opts: {
 
   if (!reply.content.trim()) return;
 
-  await wa.sendText(recipientPhone, reply.content);
+  try {
+    await wa.sendText(recipientPhone, reply.content);
+  } catch (err) {
+    const errorMessage = formatWhatsAppError(err);
+    console.error('AI WhatsApp send failed:', errorMessage);
+    const [failed] = await db
+      .insert(messages)
+      .values({
+        conversationId,
+        businessId,
+        direction: 'outbound',
+        senderType: 'ai',
+        type: 'text',
+        content: { text: reply.content },
+        status: 'failed',
+        errorMessage,
+      })
+      .returning();
+    broadcastToBusiness(businessId, 'message:new', failed);
+    return;
+  }
 
   const [saved] = await db
     .insert(messages)
@@ -79,4 +106,14 @@ export async function maybeGenerateAiReply(opts: {
   });
 
   broadcastToBusiness(businessId, 'message:new', saved);
+}
+
+function getTextContent(content: unknown): string {
+  if (!content || typeof content !== 'object') return '';
+  const value = content as { text?: unknown; body?: { text?: unknown } };
+  if (typeof value.text === 'string') return value.text;
+  if (value.text && typeof value.text === 'object' && typeof (value.text as { body?: unknown }).body === 'string') {
+    return (value.text as { body: string }).body;
+  }
+  return typeof value.body?.text === 'string' ? value.body.text : '';
 }

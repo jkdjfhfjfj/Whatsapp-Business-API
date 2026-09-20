@@ -75,6 +75,7 @@ wabaRouter.post('/test-connection', requireRole('owner', 'admin'), async (req, r
       accessToken: decryptSecret(row.accessTokenEnc),
       senderPhoneNumberId: row.phoneNumberId,
       WABA_ID: row.wabaId,
+      apiVersion: row.apiVersion ?? 'v20.0',
     });
     if (testRecipientPhone) {
       await wa.sendText(testRecipientPhone, 'This is a test message from your WhatsApp support platform. Setup looks good! ✅');
