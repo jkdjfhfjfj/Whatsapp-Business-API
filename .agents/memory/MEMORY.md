@@ -1,0 +1,1 @@
+- [Credential encryption continuity](credential-encryption-continuity.md) — keep the stable encryption secret when removing browser auth or existing WABA credentials become unreadable.
