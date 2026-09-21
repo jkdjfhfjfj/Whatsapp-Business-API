@@ -37,6 +37,18 @@ function renderContent(msg: any) {
           {msg.content.footerText && <small className="interactive-footer">{msg.content.footerText}</small>}
         </div>
       );
+    case 'template':
+      return (
+        <div>
+          <strong className="interactive-header">Template: {msg.content.name ?? 'approved message'}</strong>
+          <small className="interactive-footer">Language: {msg.content.language ?? 'default'}</small>
+          {msg.content.components?.flatMap((component: any) => component.parameters ?? []).map((parameter: any, index: number) => (
+            <span className="option-chip" key={`${parameter.text ?? parameter.type ?? 'parameter'}-${index}`}>
+              {parameter.text ?? parameter.type ?? 'parameter'}
+            </span>
+          ))}
+        </div>
+      );
     case 'location':
       return <p><MapPin size={14} style={{ verticalAlign: 'text-bottom', marginRight: 5 }} />Location shared{msg.content.name ? ` — ${msg.content.name}` : ''}</p>;
     case 'contact':
