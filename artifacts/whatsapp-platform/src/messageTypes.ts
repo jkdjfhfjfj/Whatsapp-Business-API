@@ -12,6 +12,7 @@ export function normalizedMessageType(message: any): string {
   if (rawType === 'contact_message') return 'contact';
   if (rawType === 'quick_reply_message' || rawType === 'simple_button_message') return 'button';
   if (rawType === 'radio_button_message') return 'list';
+  if (rawType === 'template_message' || rawType === 'message_template' || rawType === 'template') return 'template';
 
   if (rawType === 'media_message') {
     const mediaType = MEDIA_TYPES.find((kind) => mediaContent(message, kind));

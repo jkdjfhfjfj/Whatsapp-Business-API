@@ -38,11 +38,12 @@ function renderContent(msg: any) {
         </div>
       );
     case 'template':
+      const template = msg.content?.template ?? msg.content?.body?.template ?? msg.content ?? {};
       return (
         <div>
-          <strong className="interactive-header">Template: {msg.content.name ?? 'approved message'}</strong>
-          <small className="interactive-footer">Language: {msg.content.language ?? 'default'}</small>
-          {msg.content.components?.flatMap((component: any) => component.parameters ?? []).map((parameter: any, index: number) => (
+          <strong className="interactive-header">Template: {template.name ?? 'approved message'}</strong>
+          <small className="interactive-footer">Language: {template.language ?? 'default'}</small>
+          {template.components?.flatMap((component: any) => component.parameters ?? []).map((parameter: any, index: number) => (
             <span className="option-chip" key={`${parameter.text ?? parameter.type ?? 'parameter'}-${index}`}>
               {parameter.text ?? parameter.type ?? 'parameter'}
             </span>
