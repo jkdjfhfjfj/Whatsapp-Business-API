@@ -15,6 +15,15 @@ export const wabaRouter = Router();
 wabaRouter.use(requireAuth);
 const profileUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
 
+function safeSecretMask(encrypted: string | null) {
+  if (!encrypted) return null;
+  try {
+    return maskSecret(decryptSecret(encrypted));
+  } catch {
+    return 'saved but unreadable — enter a replacement';
+  }
+}
+
 wabaRouter.get('/', async (req, res) => {
   const businessId = req.tenant!.businessId;
   const [row] = await db.select().from(wabaSettings).where(eq(wabaSettings.businessId, businessId)).limit(1);
@@ -22,8 +31,8 @@ wabaRouter.get('/', async (req, res) => {
 
   res.json({
     appId: row.appId,
-    appSecretMasked: row.appSecretEnc ? maskSecret(decryptSecret(row.appSecretEnc)) : null,
-    accessTokenMasked: row.accessTokenEnc ? maskSecret(decryptSecret(row.accessTokenEnc)) : null,
+    appSecretMasked: safeSecretMask(row.appSecretEnc),
+    accessTokenMasked: safeSecretMask(row.accessTokenEnc),
     wabaId: row.wabaId,
     phoneNumberId: row.phoneNumberId,
     displayPhoneNumber: row.displayPhoneNumber,
