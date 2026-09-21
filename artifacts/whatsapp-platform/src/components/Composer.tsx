@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Paperclip, Send, Mic, Square, X, Trash2, FileText, AudioLines, List, Plus } from 'lucide-react';
+import { Paperclip, Send, Mic, Square, X, Trash2, FileText, AudioLines, List, Plus, Zap } from 'lucide-react';
 import { api } from '../api';
 import { useToast } from '../Toast';
 import AttachMenu from './AttachMenu';
@@ -42,6 +42,7 @@ export default function Composer({ conversationId, disabled, disabledReason, onS
   const [attachment, setAttachment] = useState<PendingAttachment | null>(null);
   const [quickReplies, setQuickReplies] = useState<any[]>([]);
   const [quickReplyFilter, setQuickReplyFilter] = useState<string | null>(null);
+  const [quickReplyPickerOpen, setQuickReplyPickerOpen] = useState(false);
   const [advancedType, setAdvancedType] = useState<'buttons' | 'list' | null>(null);
   const [advanced, setAdvanced] = useState<AdvancedDraft>(emptyAdvancedDraft);
   const [templateOpen, setTemplateOpen] = useState(false);
@@ -59,7 +60,7 @@ export default function Composer({ conversationId, disabled, disabledReason, onS
   useEffect(() => { api.listQuickReplies().then(setQuickReplies).catch(() => {}); }, []);
   useEffect(() => {
     // Reset the composer whenever the conversation changes so drafts don't leak between chats.
-    setText(''); setAttachment(null); setShowAttachMenu(false); setAdvancedType(null); setAdvanced(emptyAdvancedDraft); setTemplateOpen(false); setTemplate({ name: '', language: 'en_US', parameters: '' });
+    setText(''); setAttachment(null); setShowAttachMenu(false); setQuickReplyFilter(null); setQuickReplyPickerOpen(false); setAdvancedType(null); setAdvanced(emptyAdvancedDraft); setTemplateOpen(false); setTemplate({ name: '', language: 'en_US', parameters: '' });
   }, [conversationId]);
 
   // Auto-grow the textarea up to a sane cap instead of a fixed single-line box.
@@ -97,6 +98,7 @@ export default function Composer({ conversationId, disabled, disabledReason, onS
       setText(reply.message ?? '');
     }
     setQuickReplyFilter(null);
+    setQuickReplyPickerOpen(false);
     textareaRef.current?.focus();
   }
 
@@ -248,8 +250,11 @@ export default function Composer({ conversationId, disabled, disabledReason, onS
     if (recordTimer.current) clearInterval(recordTimer.current);
   }
 
-  const filteredQuickReplies = quickReplyFilter !== null
-    ? quickReplies.filter((q) => q.shortcut.replace(/^\/+/, '').toLowerCase().startsWith(quickReplyFilter.toLowerCase()))
+  const visibleQuickReplies = quickReplyPickerOpen || quickReplyFilter !== null
+    ? quickReplies.filter((q) => {
+      const filter = quickReplyFilter?.toLowerCase() ?? '';
+      return q.shortcut.replace(/^\/+/, '').toLowerCase().startsWith(filter);
+    })
     : [];
 
   return (
@@ -352,9 +357,9 @@ export default function Composer({ conversationId, disabled, disabledReason, onS
         </div>
       )}
 
-      {filteredQuickReplies.length > 0 && (
+      {visibleQuickReplies.length > 0 && (
         <ul className="quick-reply-menu">
-            {filteredQuickReplies.map((q) => (
+            {visibleQuickReplies.map((q) => (
              <li key={q.id} onClick={() => insertQuickReply(q)}>
                <strong>{q.shortcut}</strong> <span>{q.messageType !== 'text' ? `[${q.messageType}] ` : ''}{q.message.slice(0, 60)}</span>
             </li>
@@ -365,6 +370,14 @@ export default function Composer({ conversationId, disabled, disabledReason, onS
       {!recording && (
         <div className="composer">
           <button className="icon-btn" onClick={() => setShowAttachMenu(true)} aria-label="Attach"><Paperclip size={22} /></button>
+          <button
+            className={`icon-btn ${quickReplyPickerOpen ? 'active' : ''}`}
+            onClick={() => { setQuickReplyPickerOpen((open) => !open); setQuickReplyFilter(null); }}
+            aria-label="Quick replies"
+            title="Quick replies"
+          >
+            <Zap size={19} />
+          </button>
           <button className={`icon-btn ${templateOpen ? 'active' : ''}`} onClick={openTemplates} aria-label="Send Meta template"><FileText size={20} /></button>
           <button className={`icon-btn ${advancedType ? 'active' : ''}`} onClick={() => { setAdvancedType(advancedType ? null : 'buttons'); setAdvanced(advancedType ? emptyAdvancedDraft : advanced); }} aria-label="Advanced message"><List size={20} /></button>
 
