@@ -2,8 +2,9 @@ import { Router } from 'express';
 import crypto from 'node:crypto';
 import { db } from '../db/client.js';
 import { wabaSettings, contacts, conversations, messages, webhookEvents } from '../db/schema.js';
-import { eq, and } from 'drizzle-orm';
+import { eq, and, desc, sql } from 'drizzle-orm';
 import { getWhatsAppClientForBusiness } from '../services/getWhatsAppClient.js';
+import { normalizePhone } from '../services/whatsapp.js';
 import { maybeGenerateAiReply } from '../services/aiReply.js';
 import { broadcastToBusiness } from '../services/websocket.js';
 
@@ -94,48 +95,63 @@ webhookRouter.post('/', async (req, res) => {
 
 async function handleInboundMessage(businessId: string, wa: Awaited<ReturnType<typeof getWhatsAppClientForBusiness>>, incoming: any) {
   if (!wa) return;
-  const waId: string = incoming.from.phone;
+  const waId: string = normalizePhone(String(incoming.from.phone ?? ''));
   const waName: string | undefined = incoming.from.name;
-
-  let [contact] = await db
-    .select()
-    .from(contacts)
-    .where(and(eq(contacts.businessId, businessId), eq(contacts.waId, waId)))
-    .limit(1);
-
-  if (!contact) {
-    [contact] = await db
-      .insert(contacts)
-      .values({ businessId, waId, waName, lastContactAt: new Date() })
-      .returning();
-  } else {
-    await db.update(contacts).set({
-      ...(waName && waName !== contact.waName ? { waName } : {}),
-      lastContactAt: new Date(),
-    }).where(eq(contacts.id, contact.id));
-  }
-
-  let [conversation] = await db
-    .select()
-    .from(conversations)
-    .where(and(eq(conversations.businessId, businessId), eq(conversations.contactId, contact.id), eq(conversations.status, 'open')))
-    .limit(1);
 
   const now = new Date();
   const windowExpiresAt = new Date(now.getTime() + WINDOW_HOURS * 60 * 60 * 1000);
+  const { contact, conversation } = await db.transaction(async (tx) => {
+    // Webhooks can arrive concurrently. The advisory lock makes the lookup/create
+    // sequence atomic for this business and normalized WhatsApp number.
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`${businessId}:${waId}`}))`);
 
-  if (!conversation) {
-    [conversation] = await db
-      .insert(conversations)
-      .values({ businessId, contactId: contact.id, lastCustomerMessageAt: now, windowExpiresAt, unreadCount: 1 })
-      .returning();
-  } else {
-    [conversation] = await db
-      .update(conversations)
-      .set({ lastCustomerMessageAt: now, windowExpiresAt, unreadCount: conversation.unreadCount + 1, updatedAt: now })
-      .where(eq(conversations.id, conversation.id))
-      .returning();
-  }
+    let [contact] = await tx
+      .select()
+      .from(contacts)
+      .where(and(eq(contacts.businessId, businessId), eq(contacts.waId, waId)))
+      .limit(1);
+
+    if (!contact) {
+      [contact] = await tx
+        .insert(contacts)
+        .values({ businessId, waId, waName, lastContactAt: now })
+        .returning();
+    } else {
+      [contact] = await tx.update(contacts).set({
+        ...(waName && waName !== contact.waName ? { waName } : {}),
+        lastContactAt: now,
+      }).where(eq(contacts.id, contact.id)).returning();
+    }
+
+    // A customer should have one working thread. Reopen the most recent thread
+    // rather than creating a second conversation when an older one was resolved.
+    let [conversation] = await tx
+      .select()
+      .from(conversations)
+      .where(and(eq(conversations.businessId, businessId), eq(conversations.contactId, contact.id)))
+      .orderBy(desc(conversations.updatedAt))
+      .limit(1);
+
+    if (!conversation) {
+      [conversation] = await tx
+        .insert(conversations)
+        .values({ businessId, contactId: contact.id, lastCustomerMessageAt: now, windowExpiresAt, unreadCount: 1 })
+        .returning();
+    } else {
+      [conversation] = await tx
+        .update(conversations)
+        .set({
+          status: 'open',
+          lastCustomerMessageAt: now,
+          windowExpiresAt,
+          unreadCount: conversation.unreadCount + 1,
+          updatedAt: now,
+        })
+        .where(eq(conversations.id, conversation.id))
+        .returning();
+    }
+    return { contact, conversation };
+  });
 
   const content = extractContent(incoming);
 
