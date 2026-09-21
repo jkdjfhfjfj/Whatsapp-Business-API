@@ -5,7 +5,7 @@ import { useToast } from '../Toast';
 import AttachMenu from './AttachMenu';
 
 type PendingAttachment = { file: File | Blob; kind: 'image' | 'document' | 'video' | 'audio'; previewUrl?: string; name: string };
-type ButtonDraft = { title: string; id: string };
+type ButtonDraft = { title: string; id: string; link?: string };
 type RowDraft = { title: string; description: string; id: string };
 type AdvancedDraft = {
   message: string;
@@ -21,7 +21,7 @@ const emptyAdvancedDraft: AdvancedDraft = {
   headerText: '',
   footerText: '',
   actionTitle: 'View options',
-  buttons: [{ title: '', id: '' }],
+  buttons: [{ title: '', id: '', link: '' }],
   rows: [{ title: '', description: '', id: '' }],
 };
 
@@ -121,7 +121,7 @@ export default function Composer({ conversationId, disabled, disabledReason, onS
     setSending(true);
     try {
       if (advancedType === 'buttons') {
-        const buttons = advanced.buttons.filter((button) => button.title.trim() && button.id.trim());
+        const buttons = advanced.buttons.filter((button) => button.title.trim() && (button.id.trim() || button.link?.trim()));
         if (buttons.length < 1 || buttons.length > 3) {
           toast('Add between 1 and 3 complete buttons.', 'error');
           return;
@@ -245,10 +245,11 @@ export default function Composer({ conversationId, disabled, disabledReason, onS
               {advanced.buttons.map((button, index) => (
                 <div className="advanced-item-row" key={index}>
                   <input value={button.title} maxLength={20} onChange={(e) => setAdvanced({ ...advanced, buttons: advanced.buttons.map((b, i) => i === index ? { ...b, title: e.target.value } : b) })} placeholder={`Button ${index + 1} title`} />
-                  <input value={button.id} maxLength={256} onChange={(e) => setAdvanced({ ...advanced, buttons: advanced.buttons.map((b, i) => i === index ? { ...b, id: e.target.value } : b) })} placeholder="Button ID" />
+                  <input value={button.id} maxLength={256} onChange={(e) => setAdvanced({ ...advanced, buttons: advanced.buttons.map((b, i) => i === index ? { ...b, id: e.target.value } : b) })} placeholder="Reply ID (or leave blank)" />
+                  <input type="url" value={button.link ?? ''} maxLength={2048} onChange={(e) => setAdvanced({ ...advanced, buttons: advanced.buttons.map((b, i) => i === index ? { ...b, link: e.target.value } : b) })} placeholder="URL button link (optional)" />
                 </div>
               ))}
-              {advanced.buttons.length < 3 && <button type="button" className="secondary-action" onClick={() => setAdvanced({ ...advanced, buttons: [...advanced.buttons, { title: '', id: '' }] })}><Plus size={14} /> Add button</button>}
+              {advanced.buttons.length < 3 && <button type="button" className="secondary-action" onClick={() => setAdvanced({ ...advanced, buttons: [...advanced.buttons, { title: '', id: '', link: '' }] })}><Plus size={14} /> Add button</button>}
             </div>
           ) : (
             <div className="advanced-fields">
@@ -301,7 +302,7 @@ export default function Composer({ conversationId, disabled, disabledReason, onS
             rows={1}
           />
 
-          {text.trim() || attachment ? (
+          {text.trim() || attachment || advancedType ? (
             <button className="send-btn" onClick={send} disabled={sending} aria-label="Send">
               {sending ? <span className="spinner" /> : <Send size={20} />}
             </button>

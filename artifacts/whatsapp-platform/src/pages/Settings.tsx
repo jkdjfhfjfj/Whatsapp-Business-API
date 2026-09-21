@@ -450,11 +450,11 @@ function QuickRepliesSettings() {
       const payload: Record<string, unknown> = {};
       if (messageType === 'buttons') {
         const buttons = buttonLines.split('\n').map((line) => {
-          const [title, id] = line.split('|').map((part) => part.trim());
-          return { title, id };
-        }).filter((button) => button.title && button.id);
+          const [title, id, link] = line.split('|').map((part) => part.trim());
+          return { title, id, link };
+        }).filter((button) => button.title && (button.id || button.link));
         if (buttons.length < 1 || buttons.length > 3) {
-          toast('Add 1-3 buttons, one per line as Title | id.', 'error');
+          toast('Add 1-3 buttons, one per line as Title | reply-id | optional-link.', 'error');
           return;
         }
         payload.buttons = buttons;
@@ -528,7 +528,7 @@ function QuickRepliesSettings() {
         </>
       )}
       {messageType === 'buttons' && (
-        <label>Buttons, one per line: title | id
+        <label>Buttons, one per line: title | reply-id | optional-link
           <textarea rows={3} value={buttonLines} onChange={(e) => setButtonLines(e.target.value)} placeholder={'See products | see_products\nTalk to a human | talk_to_human'} />
         </label>
       )}

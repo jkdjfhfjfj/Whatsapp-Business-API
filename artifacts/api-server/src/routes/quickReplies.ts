@@ -13,7 +13,11 @@ quickRepliesRouter.get('/', async (req, res) => {
   res.json(rows);
 });
 
-const buttonSchema = z.object({ title: z.string().min(1).max(20), id: z.string().min(1).max(256) });
+const buttonSchema = z.object({
+  title: z.string().min(1).max(20),
+  id: z.string().max(256).optional(),
+  link: z.string().url().max(2048).optional(),
+}).refine((button) => Boolean(button.id || button.link), { message: 'Each button needs a reply ID or a URL link.' });
 const rowSchema = z.object({
   title: z.string().min(1).max(24),
   description: z.string().min(1).max(72),

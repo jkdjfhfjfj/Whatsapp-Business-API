@@ -84,7 +84,11 @@ messagesRouter.post('/text', async (req, res) => {
 const buttonsSchema = z.object({
   conversationId: z.string().uuid(),
   message: z.string().min(1),
-  buttons: z.array(z.object({ title: z.string(), id: z.string() })).min(1).max(3),
+  buttons: z.array(z.object({
+    title: z.string().min(1).max(20),
+    id: z.string().max(256).optional(),
+    link: z.string().url().max(2048).optional(),
+  }).refine((button) => Boolean(button.id || button.link), { message: 'Each button needs a reply ID or a URL link.' })).min(1).max(3),
   headerText: z.string().max(60).optional(),
   footerText: z.string().max(60).optional(),
 });

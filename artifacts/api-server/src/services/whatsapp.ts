@@ -23,7 +23,8 @@ export interface WabaCredentials {
 
 export interface SimpleButton {
   title: string;
-  id: string;
+  id?: string;
+  link?: string;
 }
 
 export interface RadioSection {
@@ -45,13 +46,20 @@ export function validateSimpleButtons(buttons: SimpleButton[]) {
   if (buttons.length < 1 || buttons.length > 3) {
     throw new Error('sendSimpleButtons supports between 1 and 3 buttons.');
   }
-  for (const b of buttons) {
+    for (const b of buttons) {
     if (b.title.length < 1 || b.title.length > 20) {
       throw new Error(`Button title "${b.title}" must be 1-20 characters.`);
     }
-    if (b.id.length < 1 || b.id.length > 256) {
+      if (!b.id && !b.link) {
+        throw new Error(`Button "${b.title}" needs a reply id or a link.`);
+      }
+      if (b.id && b.id.length > 256) {
       throw new Error(`Button id "${b.id}" must be 1-256 characters.`);
     }
+      if (b.link) {
+        try { new URL(b.link); } catch { throw new Error(`Button link "${b.link}" must be a valid URL.`); }
+      }
+      if (b.id && b.link) throw new Error(`Button "${b.title}" cannot have both a reply id and a link.`);
   }
 }
 
@@ -208,6 +216,25 @@ export class WhatsAppService {
     footerText?: string;
   }) {
     validateSimpleButtons(opts.buttons);
+    const linkedButton = opts.buttons.find((button) => button.link);
+    if (linkedButton) {
+      if (opts.buttons.length !== 1 || !linkedButton.link) {
+        throw new Error('A URL button message must contain exactly one button.');
+      }
+      return this.sendMessage(recipientPhone, {
+        type: 'interactive',
+        interactive: {
+          type: 'cta_url',
+          ...(opts.headerText ? { header: { type: 'text', text: opts.headerText } } : {}),
+          body: { text: opts.message },
+          ...(opts.footerText ? { footer: { text: opts.footerText } } : {}),
+          action: {
+            name: 'cta_url',
+            parameters: { display_text: linkedButton.title, url: linkedButton.link },
+          },
+        },
+      });
+    }
     return this.sendMessage(recipientPhone, {
       type: 'interactive',
       interactive: {
@@ -215,7 +242,7 @@ export class WhatsAppService {
         ...(opts.headerText ? { header: { type: 'text', text: opts.headerText } } : {}),
         body: { text: opts.message },
         ...(opts.footerText ? { footer: { text: opts.footerText } } : {}),
-        action: { buttons: opts.buttons.map((button) => ({ type: 'reply', reply: button })) },
+         action: { buttons: opts.buttons.map((button) => ({ type: 'reply', reply: { id: button.id, title: button.title } })) },
       },
     });
   }
