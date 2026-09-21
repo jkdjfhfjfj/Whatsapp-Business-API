@@ -115,7 +115,7 @@ export class WhatsAppService {
       `https://graph.facebook.com/${this.apiVersion}/${this.senderPhoneNumberId}/whatsapp_business_profile?fields=about,address,description,email,profile_picture_url,websites,vertical`,
       { headers: { Authorization: `Bearer ${this.accessToken}` } },
     );
-    const data = await response.json().catch(() => ({}));
+    const data = await response.json().catch(() => ({})) as { data?: unknown[] };
     if (!response.ok) throw new Error(formatMetaApiError('read business profile', response.status, data));
     return data?.data?.[0] ?? data;
   }

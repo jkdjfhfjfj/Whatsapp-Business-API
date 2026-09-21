@@ -83,6 +83,8 @@ label {
   letter-spacing: .01em;
   margin-bottom: 16px;
 }
+.field-hint { color: var(--muted); font-size: 10px; font-weight: 500; }
+.profile-picture-preview { width: 88px; height: 88px; margin-bottom: 8px; border: 1px solid var(--border); border-radius: 50%; object-fit: cover; }
 a { color: inherit; }
 code, .mono { font-family: var(--font-mono); }
 code {
