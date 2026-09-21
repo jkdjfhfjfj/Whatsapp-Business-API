@@ -71,6 +71,7 @@ export const aiSettings = pgTable('ai_settings', {
   businessContext: text('business_context').default(''),
   restrictedTopics: text('restricted_topics').default(''),
   pauseAfterHumanReply: boolean('pause_after_human_reply').notNull().default(true),
+  humanHandoffMessage: text('human_handoff_message').notNull().default('A human agent has joined the conversation and will take over from here.'),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 });
 

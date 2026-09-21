@@ -1,8 +1,8 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { db } from '../db/client.js';
-import { conversations, contacts, messages, media } from '../db/schema.js';
-import { eq, and } from 'drizzle-orm';
+import { conversations, contacts, messages, media, aiSettings } from '../db/schema.js';
+import { eq, and, desc } from 'drizzle-orm';
 import { requireAuth } from '../auth/middleware.js';
 import { getWhatsAppClientForBusiness } from '../services/getWhatsAppClient.js';
 import { formatWhatsAppError } from '../services/whatsapp.js';
@@ -31,6 +31,7 @@ async function recordOutbound(
   content: Record<string, unknown>,
   whatsappMessageId?: string,
   errorMessage?: string,
+  senderType: 'agent' | 'system' = 'agent',
 ) {
   const [saved] = await db
     .insert(messages)
@@ -38,7 +39,7 @@ async function recordOutbound(
       conversationId,
       businessId,
       direction: 'outbound',
-      senderType: 'agent',
+      senderType,
       senderId,
       type,
       content,
@@ -50,6 +51,41 @@ async function recordOutbound(
   await db.update(conversations).set({ updatedAt: new Date() }).where(eq(conversations.id, conversationId));
   broadcastToBusiness(businessId, 'message:new', saved);
   return saved;
+}
+
+async function markHumanTakeover(
+  businessId: string,
+  ctx: { conversation: typeof conversations.$inferSelect; contact: typeof contacts.$inferSelect },
+  wa: Awaited<ReturnType<typeof getWhatsAppClientForBusiness>>,
+  userId: string,
+) {
+  if (!wa || !ctx.conversation.aiEnabled) return;
+  const recent = await db.select().from(messages).where(eq(messages.conversationId, ctx.conversation.id)).orderBy(desc(messages.createdAt)).limit(100);
+  if (recent.some((message) => (message.content as { humanHandoff?: unknown } | null)?.humanHandoff === true)) {
+    await db.update(conversations).set({ aiEnabled: false, updatedAt: new Date() }).where(eq(conversations.id, ctx.conversation.id));
+    return;
+  }
+
+  const [settings] = await db.select().from(aiSettings).where(eq(aiSettings.businessId, businessId)).limit(1);
+  const handoffMessage = settings?.humanHandoffMessage?.trim();
+  if (handoffMessage) {
+    try {
+      const response = await wa.sendText(ctx.contact.waId, handoffMessage);
+      await recordOutbound(
+        businessId,
+        ctx.conversation.id,
+        userId,
+        'text',
+        { text: handoffMessage, humanHandoff: true },
+        extractWhatsAppMessageId(response),
+        undefined,
+        'system',
+      );
+    } catch (err) {
+      console.warn(`[handoff] could not send configured human-joined message: ${formatWhatsAppError(err)}`);
+    }
+  }
+  await db.update(conversations).set({ aiEnabled: false, updatedAt: new Date() }).where(eq(conversations.id, ctx.conversation.id));
 }
 
 const textSchema = z.object({ conversationId: z.string().uuid(), message: z.string().min(1) });
@@ -66,6 +102,7 @@ messagesRouter.post('/text', async (req, res) => {
   if (!wa) return res.status(400).json({ error: 'WhatsApp is not configured for this business yet.' });
 
   try {
+    await markHumanTakeover(businessId, ctx, wa, req.tenant!.userId);
     const response = await wa.sendText(ctx.contact.waId, parsed.data.message);
     const saved = await recordOutbound(
       businessId,
@@ -93,6 +130,49 @@ const buttonsSchema = z.object({
   footerText: z.string().max(60).optional(),
 });
 
+messagesRouter.get('/templates/meta', async (req, res) => {
+  const wa = await getWhatsAppClientForBusiness(req.tenant!.businessId);
+  if (!wa) return res.status(400).json({ error: 'WhatsApp is not configured for this business yet.' });
+  try {
+    res.json(await wa.listMessageTemplates());
+  } catch (err) {
+    res.status(400).json({ error: formatWhatsAppError(err) });
+  }
+});
+
+const templateSchema = z.object({
+  conversationId: z.string().uuid(),
+  name: z.string().min(1).max(512).regex(/^[a-z0-9_]+$/),
+  language: z.string().min(2).max(32),
+  components: z.array(z.record(z.unknown())).max(10).optional(),
+});
+
+messagesRouter.post('/template', async (req, res) => {
+  const businessId = req.tenant!.businessId;
+  const parsed = templateSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+  const ctx = await loadConversationAndContact(businessId, parsed.data.conversationId);
+  if (!ctx) return res.status(404).json({ error: 'Conversation not found.' });
+  const wa = await getWhatsAppClientForBusiness(businessId);
+  if (!wa) return res.status(400).json({ error: 'WhatsApp is not configured for this business yet.' });
+
+  try {
+    await markHumanTakeover(businessId, ctx, wa, req.tenant!.userId);
+    const response = await wa.sendTemplate(ctx.contact.waId, parsed.data);
+    const saved = await recordOutbound(
+      businessId,
+      ctx.conversation.id,
+      req.tenant!.userId,
+      'template',
+      { name: parsed.data.name, language: parsed.data.language, components: parsed.data.components ?? [] },
+      extractWhatsAppMessageId(response),
+    );
+    res.json(saved);
+  } catch (err) {
+    res.status(400).json({ error: formatWhatsAppError(err) });
+  }
+});
+
 messagesRouter.post('/buttons', async (req, res) => {
   const businessId = req.tenant!.businessId;
   const parsed = buttonsSchema.safeParse(req.body);
@@ -105,6 +185,7 @@ messagesRouter.post('/buttons', async (req, res) => {
   if (!wa) return res.status(400).json({ error: 'WhatsApp is not configured for this business yet.' });
 
   try {
+    await markHumanTakeover(businessId, ctx, wa, req.tenant!.userId);
     const response = await wa.sendSimpleButtons(ctx.contact.waId, {
       message: parsed.data.message,
       buttons: parsed.data.buttons,
@@ -147,6 +228,7 @@ messagesRouter.post('/list', async (req, res) => {
   if (!wa) return res.status(400).json({ error: 'WhatsApp is not configured for this business yet.' });
 
   try {
+    await markHumanTakeover(businessId, ctx, wa, req.tenant!.userId);
     const { conversationId, ...opts } = parsed.data;
     const response = await wa.sendRadioButtons(ctx.contact.waId, opts);
     const saved = await recordOutbound(
@@ -212,6 +294,7 @@ for (const [path, method] of [
     if (!wa) { cleanup?.(); return res.status(400).json({ error: 'WhatsApp is not configured for this business yet.' }); }
 
     try {
+       await markHumanTakeover(businessId, ctx, wa, req.tenant!.userId);
        const response = await (wa[method] as (phone: string, opts: unknown) => Promise<unknown>)(ctx.contact.waId, {
         url: parsed.data.url,
         file_path: filePath,

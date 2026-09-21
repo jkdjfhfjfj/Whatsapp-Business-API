@@ -360,6 +360,10 @@ function AiSettings() {
           onChange={(e) => setForm({ ...form, pauseAfterHumanReply: e.target.checked })} />
         Pause AI automatically after a human agent replies
       </label>
+      <label>Human handoff message
+        <textarea rows={3} maxLength={4096} value={form.humanHandoffMessage ?? ''} onChange={(e) => setForm({ ...form, humanHandoffMessage: e.target.value })} placeholder="A human agent has joined the conversation and will take over from here." />
+        <span className="field-hint">Sent once when an agent first replies, then AI is paused for this conversation.</span>
+      </label>
 
       {form.compiledPromptPreview && (
         <div className="compiled-preview">

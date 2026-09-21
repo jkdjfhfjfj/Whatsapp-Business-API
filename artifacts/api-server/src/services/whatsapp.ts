@@ -91,12 +91,14 @@ export class WhatsAppService {
   private accessToken: string;
   private apiVersion: string;
   private senderPhoneNumberId: string;
+  private wabaId: string;
   private appId?: string;
 
   constructor(credentials: WabaCredentials & { apiVersion?: string }) {
     this.accessToken = normalizeAccessToken(credentials.accessToken);
     this.apiVersion = credentials.apiVersion ?? 'v20.0';
     this.senderPhoneNumberId = credentials.senderPhoneNumberId;
+    this.wabaId = credentials.WABA_ID;
     this.appId = credentials.appId;
     // The wrapper calls this option graphAPIVersion. Passing apiVersion directly is
     // ignored, which makes it fall back to its old v13.0 default.
@@ -187,6 +189,31 @@ export class WhatsAppService {
       type: 'text',
       text: { preview_url: false, body: message },
     });
+  }
+
+  async sendTemplate(recipientPhone: string, opts: {
+    name: string;
+    language: string;
+    components?: Record<string, unknown>[];
+  }) {
+    return this.sendMessage(recipientPhone, {
+      type: 'template',
+      template: {
+        name: opts.name,
+        language: { code: opts.language },
+        ...(opts.components?.length ? { components: opts.components } : {}),
+      },
+    });
+  }
+
+  async listMessageTemplates() {
+    const response = await fetch(
+      `https://graph.facebook.com/${this.apiVersion}/${this.wabaId}/message_templates?fields=name,status,language,category,components&limit=100`,
+      { headers: { Authorization: `Bearer ${this.accessToken}` } },
+    );
+    const data = await response.json().catch(() => ({})) as { data?: unknown[] };
+    if (!response.ok) throw new Error(formatMetaApiError('list Meta message templates', response.status, data));
+    return data.data ?? [];
   }
 
   async sendImage(recipientPhone: string, opts: MediaSendOptions) {

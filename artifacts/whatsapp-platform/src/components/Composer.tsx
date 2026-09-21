@@ -15,6 +15,7 @@ type AdvancedDraft = {
   buttons: ButtonDraft[];
   rows: RowDraft[];
 };
+type TemplateDraft = { name: string; language: string; parameters: string };
 
 const emptyAdvancedDraft: AdvancedDraft = {
   message: '',
@@ -43,6 +44,10 @@ export default function Composer({ conversationId, disabled, disabledReason, onS
   const [quickReplyFilter, setQuickReplyFilter] = useState<string | null>(null);
   const [advancedType, setAdvancedType] = useState<'buttons' | 'list' | null>(null);
   const [advanced, setAdvanced] = useState<AdvancedDraft>(emptyAdvancedDraft);
+  const [templateOpen, setTemplateOpen] = useState(false);
+  const [templates, setTemplates] = useState<any[]>([]);
+  const [templateLoading, setTemplateLoading] = useState(false);
+  const [template, setTemplate] = useState<TemplateDraft>({ name: '', language: 'en_US', parameters: '' });
   const [recording, setRecording] = useState(false);
   const [recordSeconds, setRecordSeconds] = useState(0);
 
@@ -54,7 +59,7 @@ export default function Composer({ conversationId, disabled, disabledReason, onS
   useEffect(() => { api.listQuickReplies().then(setQuickReplies).catch(() => {}); }, []);
   useEffect(() => {
     // Reset the composer whenever the conversation changes so drafts don't leak between chats.
-    setText(''); setAttachment(null); setShowAttachMenu(false); setAdvancedType(null); setAdvanced(emptyAdvancedDraft);
+    setText(''); setAttachment(null); setShowAttachMenu(false); setAdvancedType(null); setAdvanced(emptyAdvancedDraft); setTemplateOpen(false); setTemplate({ name: '', language: 'en_US', parameters: '' });
   }, [conversationId]);
 
   // Auto-grow the textarea up to a sane cap instead of a fixed single-line box.
@@ -98,12 +103,51 @@ export default function Composer({ conversationId, disabled, disabledReason, onS
   async function send() {
     if (sending) return;
     if (attachment) return sendAttachment();
+    if (templateOpen) return sendTemplate();
     if (advancedType) return sendAdvanced();
     if (!text.trim()) return;
     setSending(true);
     try {
       await api.sendText(conversationId, text.trim());
       setText('');
+      onSent?.();
+    } catch (err) {
+      toast((err as Error).message, 'error');
+    } finally {
+      setSending(false);
+    }
+  }
+
+  async function openTemplates() {
+    setTemplateOpen((open) => !open);
+    setAdvancedType(null);
+    if (templates.length || templateLoading) return;
+    setTemplateLoading(true);
+    try {
+      setTemplates(await api.listMetaTemplates());
+    } catch (err) {
+      toast((err as Error).message, 'error');
+    } finally {
+      setTemplateLoading(false);
+    }
+  }
+
+  function selectTemplate(name: string) {
+    const selected = templates.find((item) => item.name === name);
+    setTemplate({ name, language: selected?.language ?? 'en_US', parameters: '' });
+  }
+
+  async function sendTemplate() {
+    if (!template.name.trim() || sending) return;
+    setSending(true);
+    try {
+      const parameters = template.parameters.split('\n').map((value) => value.trim()).filter(Boolean);
+      const components = parameters.length
+        ? [{ type: 'body', parameters: parameters.map((text) => ({ type: 'text', text })) }]
+        : undefined;
+      await api.sendTemplate(conversationId, template.name.trim(), template.language.trim() || 'en_US', components);
+      setTemplateOpen(false);
+      setTemplate({ name: '', language: 'en_US', parameters: '' });
       onSent?.();
     } catch (err) {
       toast((err as Error).message, 'error');
@@ -215,6 +259,31 @@ export default function Composer({ conversationId, disabled, disabledReason, onS
           {disabledReason ?? 'This chat is outside Meta’s 24-hour window. Quick replies and media are ready to submit, but Meta may require an approved template before delivery.'}
         </div>
       )}
+      {templateOpen && (
+        <div className="template-panel">
+          <div className="advanced-panel-top">
+            <strong>Meta template</strong>
+            <button className="icon-btn" onClick={() => setTemplateOpen(false)} aria-label="Close template panel"><X size={16} /></button>
+          </div>
+          <label>Approved template
+            <select value={template.name} onChange={(e) => selectTemplate(e.target.value)} disabled={templateLoading}>
+              <option value="">{templateLoading ? 'Loading Meta templates…' : 'Choose a template or enter below'}</option>
+              {templates.filter((item) => String(item.status ?? '').toLowerCase() === 'approved' || !item.status).map((item) => (
+                <option key={`${item.name}-${item.language}`} value={item.name}>{item.name} ({item.language})</option>
+              ))}
+            </select>
+          </label>
+          <label>Template name
+            <input value={template.name} onChange={(e) => setTemplate({ ...template, name: e.target.value })} placeholder="approved_template_name" />
+          </label>
+          <label>Language code
+            <input value={template.language} onChange={(e) => setTemplate({ ...template, language: e.target.value })} placeholder="en_US" />
+          </label>
+          <label>Body parameters <span className="field-hint">one value per line, in {'{{1}}'}, {'{{2}}'} order</span>
+            <textarea rows={3} value={template.parameters} onChange={(e) => setTemplate({ ...template, parameters: e.target.value })} placeholder={'Jane Doe\nOrder 1234'} />
+          </label>
+        </div>
+      )}
       {attachment && (
         <div className="attachment-preview">
           {attachment.previewUrl && attachment.kind === 'image' && <img src={attachment.previewUrl} alt="" />}
@@ -288,6 +357,7 @@ export default function Composer({ conversationId, disabled, disabledReason, onS
       {!recording && (
         <div className="composer">
           <button className="icon-btn" onClick={() => setShowAttachMenu(true)} aria-label="Attach"><Paperclip size={22} /></button>
+          <button className={`icon-btn ${templateOpen ? 'active' : ''}`} onClick={openTemplates} aria-label="Send Meta template"><FileText size={20} /></button>
           <button className={`icon-btn ${advancedType ? 'active' : ''}`} onClick={() => { setAdvancedType(advancedType ? null : 'buttons'); setAdvanced(advancedType ? emptyAdvancedDraft : advanced); }} aria-label="Advanced message"><List size={20} /></button>
 
           <textarea
@@ -299,7 +369,7 @@ export default function Composer({ conversationId, disabled, disabledReason, onS
             rows={1}
           />
 
-          {text.trim() || attachment || advancedType ? (
+          {text.trim() || attachment || advancedType || (templateOpen && template.name.trim()) ? (
             <button className="send-btn" onClick={send} disabled={sending} aria-label="Send">
               {sending ? <span className="spinner" /> : <Send size={20} />}
             </button>

@@ -27,6 +27,7 @@ aiRouter.get('/', async (req, res) => {
     businessContext: row.businessContext,
     restrictedTopics: row.restrictedTopics,
     pauseAfterHumanReply: row.pauseAfterHumanReply,
+    humanHandoffMessage: row.humanHandoffMessage,
     compiledPromptPreview: compileSystemPrompt({
       systemPrompt: row.systemPrompt,
       businessContext: row.businessContext,
@@ -46,6 +47,7 @@ const updateSchema = z.object({
   businessContext: z.string().optional(),
   restrictedTopics: z.string().optional(),
   pauseAfterHumanReply: z.boolean().optional(),
+  humanHandoffMessage: z.string().max(4096).optional(),
 });
 
 aiRouter.put('/', requireRole('owner', 'admin'), async (req, res) => {
@@ -65,6 +67,7 @@ aiRouter.put('/', requireRole('owner', 'admin'), async (req, res) => {
   if (body.businessContext !== undefined) update.businessContext = body.businessContext;
   if (body.restrictedTopics !== undefined) update.restrictedTopics = body.restrictedTopics;
   if (body.pauseAfterHumanReply !== undefined) update.pauseAfterHumanReply = body.pauseAfterHumanReply;
+  if (body.humanHandoffMessage !== undefined) update.humanHandoffMessage = body.humanHandoffMessage;
 
   await db.update(aiSettings).set(update).where(eq(aiSettings.businessId, businessId));
   res.json({ ok: true });
