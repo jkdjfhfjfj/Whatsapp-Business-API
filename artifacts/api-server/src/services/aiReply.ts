@@ -98,6 +98,18 @@ export async function maybeGenerateAiReply(opts: {
       return;
     }
 
+    // A human can reply while generation is in flight. Re-check the conversation flag
+    // immediately before sending so the generated response cannot overtake the handoff.
+    const [beforeSend] = await db
+      .select({ aiEnabled: conversations.aiEnabled })
+      .from(conversations)
+      .where(eq(conversations.id, conversationId))
+      .limit(1);
+    if (!beforeSend?.aiEnabled) {
+      console.info(`[ai] discarded generated reply after human takeover for conversation ${conversationId}`);
+      return;
+    }
+
     let whatsappMessageId: string | undefined;
     try {
       const response = await wa.sendText(recipientPhone, reply.content) as { messages?: { id?: string }[] };
@@ -121,18 +133,6 @@ export async function maybeGenerateAiReply(opts: {
       await db.update(conversations).set({ updatedAt: new Date() }).where(eq(conversations.id, conversationId));
       broadcastToBusiness(businessId, 'message:new', failed);
       broadcastToBusiness(businessId, 'conversation:update', { id: conversationId, conversationId });
-      return;
-    }
-
-    // A human can reply while generation is in flight. Re-check the conversation flag
-    // immediately before sending so the generated response cannot overtake the handoff.
-    const [beforeSend] = await db
-      .select({ aiEnabled: conversations.aiEnabled })
-      .from(conversations)
-      .where(eq(conversations.id, conversationId))
-      .limit(1);
-    if (!beforeSend?.aiEnabled) {
-      console.info(`[ai] discarded generated reply after human takeover for conversation ${conversationId}`);
       return;
     }
 
