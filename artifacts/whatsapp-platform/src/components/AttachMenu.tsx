@@ -39,9 +39,9 @@ export default function AttachMenu({ onPick, onClose }: {
           <span className="attach-icon camera"><Camera size={20} /></span> Camera
         </button>
       </div>
-      <input ref={imageInput} type="file" accept="image/*" hidden onChange={handle('image')} />
+      <input ref={imageInput} type="file" accept="image/*,.heic,.heif,.avif,.webp" hidden onChange={handle('image')} />
       <input ref={videoInput} type="file" accept="video/*" hidden onChange={handle('video')} />
-      <input ref={docInput} type="file" accept=".pdf,.doc,.docx,.xls,.xlsx,.zip,.txt" hidden onChange={handle('document')} />
+      <input ref={docInput} type="file" accept="*/*" hidden onChange={handle('document')} />
       <input ref={audioInput} type="file" accept="audio/*" hidden onChange={handle('audio')} />
       <input ref={cameraInput} type="file" accept="image/*" capture="environment" hidden onChange={handle('image')} />
     </div>

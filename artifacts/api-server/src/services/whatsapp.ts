@@ -365,18 +365,24 @@ export class WhatsAppService {
       let uploadPath = opts.file_path;
       let uploadMimeType = opts.mimeType || lookupMimeType(opts.filename ?? path.basename(opts.file_path)) || defaultMimeType(type);
       let uploadFilename = opts.filename ?? path.basename(opts.file_path);
-      let cleanupPath: string | undefined;
+      const cleanupPaths: string[] = [];
       try {
         if (type === 'audio') {
-          const prepared = await prepareAudioForWhatsApp(uploadPath);
+          const prepared = await prepareAudioForWhatsApp(uploadPath, uploadMimeType, uploadFilename);
           uploadPath = prepared.filePath;
           uploadMimeType = prepared.mimeType;
           uploadFilename = prepared.filename;
-          cleanupPath = prepared.filePath;
+          if (prepared.cleanupPath) cleanupPaths.push(prepared.cleanupPath);
+        } else if (type === 'image') {
+          const prepared = await prepareImageForWhatsApp(uploadPath, uploadMimeType);
+          uploadPath = prepared.filePath;
+          uploadMimeType = prepared.mimeType;
+          uploadFilename = prepared.filename;
+          if (prepared.cleanupPath) cleanupPaths.push(prepared.cleanupPath);
         }
         mediaPayload.id = await this.uploadMedia(uploadPath, uploadMimeType, uploadFilename);
       } finally {
-        if (cleanupPath) await fs.rm(cleanupPath, { force: true }).catch(() => {});
+        await Promise.all(cleanupPaths.map((cleanupPath) => fs.rm(cleanupPath, { recursive: true, force: true }).catch(() => {})));
       }
     } else {
       throw new Error(`A ${type} requires a public URL or an uploaded file.`);
@@ -406,7 +412,12 @@ export class WhatsAppService {
   }
 }
 
-async function prepareAudioForWhatsApp(filePath: string): Promise<{ filePath: string; mimeType: string; filename: string }> {
+async function prepareAudioForWhatsApp(filePath: string, mimeType: string, filename: string): Promise<{ filePath: string; mimeType: string; filename: string; cleanupPath?: string }> {
+  // Meta accepts OGG/Opus directly. Avoiding a second encode prevents failures for
+  // voice notes that were already recorded in the required format.
+  if (mimeType.split(';')[0].toLowerCase() === 'audio/ogg' && /\.ogg$/i.test(filename)) {
+    return { filePath, mimeType: 'audio/ogg', filename };
+  }
   const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'whatsapp-audio-'));
   const outputPath = path.join(tempDir, 'voice-note.ogg');
   try {
@@ -420,11 +431,35 @@ async function prepareAudioForWhatsApp(filePath: string): Promise<{ filePath: st
       '-b:a', '64k',
       outputPath,
     ], { timeout: 120_000 });
-    return { filePath: outputPath, mimeType: 'audio/ogg', filename: 'voice-note.ogg' };
+    return { filePath: outputPath, mimeType: 'audio/ogg', filename: 'voice-note.ogg', cleanupPath: tempDir };
   } catch (err) {
     await fs.rm(tempDir, { recursive: true, force: true }).catch(() => {});
     const detail = err instanceof Error ? err.message : String(err);
-    throw new Error(`Could not convert audio to WhatsApp-compatible OGG/Opus: ${detail}`);
+    throw new Error(`WhatsApp could not read this audio file. Please use a playable audio file (MP3, M4A, WAV, WebM, or OGG). Details: ${detail}`);
+  }
+}
+
+async function prepareImageForWhatsApp(filePath: string, mimeType: string,): Promise<{ filePath: string; mimeType: string; filename: string; cleanupPath?: string }> {
+  const normalizedMime = mimeType.split(';')[0].toLowerCase();
+  if (normalizedMime === 'image/jpeg' || normalizedMime === 'image/png') {
+    return { filePath, mimeType: normalizedMime, filename: path.basename(filePath) };
+  }
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'whatsapp-image-'));
+  const outputPath = path.join(tempDir, 'image.jpg');
+  try {
+    await execFile('ffmpeg', [
+      '-nostdin',
+      '-y',
+      '-i', filePath,
+      '-frames:v', '1',
+      '-q:v', '2',
+      outputPath,
+    ], { timeout: 120_000 });
+    return { filePath: outputPath, mimeType: 'image/jpeg', filename: 'image.jpg', cleanupPath: tempDir };
+  } catch (err) {
+    await fs.rm(tempDir, { recursive: true, force: true }).catch(() => {});
+    const detail = err instanceof Error ? err.message : String(err);
+    throw new Error(`WhatsApp could not read this image format. Please use JPG or PNG, or choose a different photo. Details: ${detail}`);
   }
 }
 
