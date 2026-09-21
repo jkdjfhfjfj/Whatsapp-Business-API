@@ -35,6 +35,14 @@ export const api = {
   updateWaba: (body: Record<string, unknown>) => request('/api/waba', { method: 'PUT', body: JSON.stringify(body) }),
   testWabaConnection: (body: { testRecipientPhone?: string }) =>
     request<{ status: string; error?: string }>('/api/waba/test-connection', { method: 'POST', body: JSON.stringify(body) }),
+  getWabaProfile: () => request<any>('/api/waba/profile'),
+  updateWabaProfile: (body: Record<string, unknown>) =>
+    request<any>('/api/waba/profile', { method: 'PUT', body: JSON.stringify(body) }),
+  uploadWabaProfilePicture: (file: File) => {
+    const form = new FormData();
+    form.append('file', file, file.name);
+    return request<any>('/api/waba/profile-picture', { method: 'POST', body: form });
+  },
 
   getStorage: () => request<any>('/api/storage'),
   updateStorage: (body: Record<string, unknown>) => request('/api/storage', { method: 'PUT', body: JSON.stringify(body) }),

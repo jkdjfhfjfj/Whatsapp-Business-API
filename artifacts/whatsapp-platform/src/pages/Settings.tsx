@@ -118,6 +118,10 @@ function StorageSettings() {
 function WabaSettings() {
   const toast = useToast();
   const [form, setForm] = useState<any>({});
+  const [profile, setProfile] = useState<any>({});
+  const [profileLoading, setProfileLoading] = useState(true);
+  const [profileSaving, setProfileSaving] = useState(false);
+  const [pictureUploading, setPictureUploading] = useState(false);
   const [testPhone, setTestPhone] = useState('');
   const [status, setStatus] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -125,7 +129,10 @@ function WabaSettings() {
   const [loadError, setLoadError] = useState(false);
 
   useEffect(() => {
-    api.getWaba().then((d) => setForm(d ?? {})).catch(() => setLoadError(true)).finally(() => setLoading(false));
+    Promise.all([
+      api.getWaba().then((d) => setForm(d ?? {})),
+      api.getWabaProfile().then((d) => setProfile(d ?? {})).catch(() => {}),
+    ]).catch(() => setLoadError(true)).finally(() => { setLoading(false); setProfileLoading(false); });
   }, []);
 
   async function save() {
@@ -154,6 +161,41 @@ function WabaSettings() {
     }
   }
 
+  async function saveProfile() {
+    setProfileSaving(true);
+    try {
+      const websites = [profile.website1, profile.website2].map((url: string) => url?.trim()).filter(Boolean);
+      const refreshed = await api.updateWabaProfile({
+        about: profile.about ?? '',
+        address: profile.address ?? '',
+        description: profile.description ?? '',
+        email: profile.email ?? '',
+        vertical: profile.vertical ?? '',
+        websites,
+      });
+      setProfile(refreshed ?? {});
+      toast('Meta business profile saved.', 'success');
+    } catch (err) {
+      toast((err as Error).message, 'error');
+    } finally {
+      setProfileSaving(false);
+    }
+  }
+
+  async function uploadProfilePicture(file?: File) {
+    if (!file) return;
+    setPictureUploading(true);
+    try {
+      const refreshed = await api.uploadWabaProfilePicture(file);
+      setProfile(refreshed ?? {});
+      toast('Meta profile picture updated.', 'success');
+    } catch (err) {
+      toast((err as Error).message, 'error');
+    } finally {
+      setPictureUploading(false);
+    }
+  }
+
   if (loading) return <div className="settings-card"><div className="skeleton skeleton-line" style={{ width: 220, height: 22 }} /><div className="empty-state">Loading WhatsApp connection</div></div>;
   if (loadError) return <div className="settings-card"><div className="empty-state"><strong>Connection settings could not load</strong><button className="primary-action" onClick={() => window.location.reload()}>Retry</button></div></div>;
 
@@ -179,6 +221,31 @@ function WabaSettings() {
       <label>API Version<input value={form.apiVersion ?? 'v20.0'} onChange={(e) => setForm({ ...form, apiVersion: e.target.value })} /></label>
 
       <button onClick={save} disabled={saving}>{saving ? 'Saving…' : 'Save settings'}</button>
+
+      <hr />
+      <h3>Meta business profile</h3>
+      <p className="subtext">Edit the profile customers see in WhatsApp. Meta supports the fields below and up to two website URLs.</p>
+      {profileLoading ? <div className="empty-state">Loading Meta profile…</div> : (
+        <>
+          {profile.profile_picture_url && <img className="profile-picture-preview" src={profile.profile_picture_url} alt="Current WhatsApp business profile" />}
+          <label>Profile picture (JPG or PNG, up to 5 MB)
+            <input type="file" accept="image/jpeg,image/png" disabled={pictureUploading} onChange={(e) => uploadProfilePicture(e.target.files?.[0])} />
+          </label>
+          <label>About <span className="field-hint">(1-139 characters)</span><input maxLength={139} value={profile.about ?? ''} onChange={(e) => setProfile({ ...profile, about: e.target.value })} /></label>
+          <label>Address <span className="field-hint">(up to 256 characters)</span><input maxLength={256} value={profile.address ?? ''} onChange={(e) => setProfile({ ...profile, address: e.target.value })} /></label>
+          <label>Description <span className="field-hint">(up to 512 characters)</span><textarea maxLength={512} rows={3} value={profile.description ?? ''} onChange={(e) => setProfile({ ...profile, description: e.target.value })} /></label>
+          <label>Contact email<input type="email" maxLength={128} value={profile.email ?? ''} onChange={(e) => setProfile({ ...profile, email: e.target.value })} /></label>
+          <label>Business category
+            <select value={profile.vertical ?? ''} onChange={(e) => setProfile({ ...profile, vertical: e.target.value })}>
+              <option value="">Not specified</option>
+              {['ALCOHOL', 'APPAREL', 'AUTO', 'BEAUTY', 'EDU', 'ENTERTAIN', 'EVENT_PLAN', 'FINANCE', 'GOVT', 'GROCERY', 'HEALTH', 'HOTEL', 'NONPROFIT', 'ONLINE_GAMBLING', 'OTC_DRUGS', 'OTHER', 'PHYSICAL_GAMBLING', 'PROF_SERVICES', 'RESTAURANT', 'RETAIL', 'TRAVEL'].map((value) => <option key={value} value={value}>{value.replaceAll('_', ' ')}</option>)}
+            </select>
+          </label>
+          <label>Website 1<input type="url" value={profile.website1 ?? profile.websites?.[0] ?? ''} onChange={(e) => setProfile({ ...profile, website1: e.target.value })} placeholder="https://example.com" /></label>
+          <label>Website 2<input type="url" value={profile.website2 ?? profile.websites?.[1] ?? ''} onChange={(e) => setProfile({ ...profile, website2: e.target.value })} placeholder="https://instagram.com/your-business" /></label>
+          <button onClick={saveProfile} disabled={profileSaving}>{profileSaving ? 'Saving profile…' : 'Save Meta profile'}</button>
+        </>
+      )}
 
       <hr />
       <h3>Test connection</h3>
