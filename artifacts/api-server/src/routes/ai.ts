@@ -10,6 +10,15 @@ import { testGroqKey, listGroqModels, compileSystemPrompt } from '../services/gr
 export const aiRouter = Router();
 aiRouter.use(requireAuth);
 
+function safeSecretMask(encrypted: string | null) {
+  if (!encrypted) return null;
+  try {
+    return maskSecret(decryptSecret(encrypted));
+  } catch {
+    return 'saved but unreadable — enter a replacement';
+  }
+}
+
 aiRouter.get('/', async (req, res) => {
   const businessId = req.tenant!.businessId;
   const [row] = await db.select().from(aiSettings).where(eq(aiSettings.businessId, businessId)).limit(1);
@@ -18,7 +27,7 @@ aiRouter.get('/', async (req, res) => {
   res.json({
     enabled: row.enabled,
     provider: row.provider,
-    groqApiKeyMasked: row.groqApiKeyEnc ? maskSecret(decryptSecret(row.groqApiKeyEnc)) : null,
+    groqApiKeyMasked: safeSecretMask(row.groqApiKeyEnc),
     model: row.model,
     temperature: row.temperature,
     maxTokens: row.maxTokens,

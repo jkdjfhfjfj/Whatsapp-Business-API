@@ -67,23 +67,22 @@ async function markHumanTakeover(
   }
 
   const [settings] = await db.select().from(aiSettings).where(eq(aiSettings.businessId, businessId)).limit(1);
-  const handoffMessage = settings?.humanHandoffMessage?.trim();
-  if (handoffMessage) {
-    try {
-      const response = await wa.sendText(ctx.contact.waId, handoffMessage);
-      await recordOutbound(
-        businessId,
-        ctx.conversation.id,
-        userId,
-        'text',
-        { text: handoffMessage, humanHandoff: true },
-        extractWhatsAppMessageId(response),
-        undefined,
-        'system',
-      );
-    } catch (err) {
-      console.warn(`[handoff] could not send configured human-joined message: ${formatWhatsAppError(err)}`);
-    }
+  const handoffMessage = settings?.humanHandoffMessage?.trim()
+    || 'A human agent has joined the conversation and will take over from here.';
+  try {
+    const response = await wa.sendText(ctx.contact.waId, handoffMessage);
+    await recordOutbound(
+      businessId,
+      ctx.conversation.id,
+      userId,
+      'text',
+      { text: handoffMessage, humanHandoff: true },
+      extractWhatsAppMessageId(response),
+      undefined,
+      'system',
+    );
+  } catch (err) {
+    console.warn(`[handoff] could not send configured human-joined message: ${formatWhatsAppError(err)}`);
   }
   await db.update(conversations).set({ aiEnabled: false, updatedAt: new Date() }).where(eq(conversations.id, ctx.conversation.id));
 }

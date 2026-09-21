@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 import { db } from '../db/client.js';
 import { businesses, users, aiSettings, wabaSettings } from '../db/schema.js';
 import { eq } from 'drizzle-orm';
+import { encryptSecret } from './crypto.js';
 
 // Authentication has been removed: anyone with the URL gets in. There is no login to establish
 // "which business/user this request belongs to" anymore, so every request is attached to one
@@ -23,8 +24,23 @@ export async function ensureDefaultTenant(): Promise<{ businessId: string; userI
     [business] = await db.insert(businesses).values({ name: DEFAULT_BUSINESS_NAME }).returning();
     // Seed default AI + WABA settings rows, same as signup used to, so Settings has something
     // to edit immediately.
-    await db.insert(aiSettings).values({ businessId: business.id });
+    await db.insert(aiSettings).values({
+      businessId: business.id,
+      enabled: Boolean(process.env.GROQ_API_KEY),
+      ...(process.env.GROQ_API_KEY ? { groqApiKeyEnc: encryptSecret(process.env.GROQ_API_KEY) } : {}),
+    });
     await db.insert(wabaSettings).values({ businessId: business.id });
+  }
+
+  // Existing single-workspace deployments may have an empty AI row from before the
+  // environment key was configured. Seed it once without overwriting a key saved in Settings.
+  const [existingAiSettings] = await db.select().from(aiSettings).where(eq(aiSettings.businessId, business.id)).limit(1);
+  if (existingAiSettings && !existingAiSettings.groqApiKeyEnc && process.env.GROQ_API_KEY) {
+    await db.update(aiSettings).set({
+      enabled: true,
+      groqApiKeyEnc: encryptSecret(process.env.GROQ_API_KEY),
+      updatedAt: new Date(),
+    }).where(eq(aiSettings.id, existingAiSettings.id));
   }
 
   let [user] = await db.select().from(users).where(eq(users.businessId, business.id)).limit(1);

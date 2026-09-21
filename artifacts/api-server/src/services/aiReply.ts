@@ -1,5 +1,5 @@
 import { db } from '../db/client.js';
-import { aiSettings, messages, aiUsage } from '../db/schema.js';
+import { aiSettings, conversations, messages, aiUsage } from '../db/schema.js';
 import { eq, desc } from 'drizzle-orm';
 import { decryptSecret } from './crypto.js';
 import { compileSystemPrompt, generateReply, type GroqChatMessage } from './groq.js';
@@ -49,6 +49,16 @@ export async function maybeGenerateAiReply(opts: {
         console.info(`[ai] paused after human reply for conversation ${conversationId}`);
         return;
       }
+    }
+
+    const [conversation] = await db
+      .select({ aiEnabled: conversations.aiEnabled })
+      .from(conversations)
+      .where(eq(conversations.id, conversationId))
+      .limit(1);
+    if (!conversation?.aiEnabled) {
+      console.info(`[ai] human takeover is active for conversation ${conversationId}`);
+      return;
     }
 
     const history: GroqChatMessage[] = recentMessages
@@ -108,7 +118,21 @@ export async function maybeGenerateAiReply(opts: {
           errorMessage,
         })
         .returning();
+      await db.update(conversations).set({ updatedAt: new Date() }).where(eq(conversations.id, conversationId));
       broadcastToBusiness(businessId, 'message:new', failed);
+      broadcastToBusiness(businessId, 'conversation:update', { id: conversationId, conversationId });
+      return;
+    }
+
+    // A human can reply while generation is in flight. Re-check the conversation flag
+    // immediately before sending so the generated response cannot overtake the handoff.
+    const [beforeSend] = await db
+      .select({ aiEnabled: conversations.aiEnabled })
+      .from(conversations)
+      .where(eq(conversations.id, conversationId))
+      .limit(1);
+    if (!beforeSend?.aiEnabled) {
+      console.info(`[ai] discarded generated reply after human takeover for conversation ${conversationId}`);
       return;
     }
 
@@ -126,6 +150,8 @@ export async function maybeGenerateAiReply(opts: {
       })
       .returning();
 
+    await db.update(conversations).set({ updatedAt: new Date() }).where(eq(conversations.id, conversationId));
+
     await db.insert(aiUsage).values({
       businessId,
       conversationId,
@@ -135,6 +161,7 @@ export async function maybeGenerateAiReply(opts: {
     });
 
     broadcastToBusiness(businessId, 'message:new', saved);
+    broadcastToBusiness(businessId, 'conversation:update', { id: conversationId, conversationId });
   } finally {
     activeReplies.delete(conversationId);
   }

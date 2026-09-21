@@ -58,7 +58,7 @@ export const storageSettings = pgTable('storage_settings', {
 export const aiSettings = pgTable('ai_settings', {
   id: uuid('id').primaryKey().defaultRandom(),
   businessId: uuid('business_id').notNull(),
-  enabled: boolean('enabled').notNull().default(false),
+  enabled: boolean('enabled').notNull().default(true),
   provider: text('provider').notNull().default('groq'),
   groqApiKeyEnc: text('groq_api_key_enc'),
   model: text('model').notNull().default('llama-3.3-70b-versatile'),
