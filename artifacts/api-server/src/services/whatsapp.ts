@@ -440,30 +440,30 @@ export class WhatsAppService {
 }
 
 async function prepareAudioForWhatsApp(filePath: string, mimeType: string, filename: string): Promise<{ filePath: string; mimeType: string; filename: string; cleanupPath?: string }> {
-  // Meta accepts OGG/Opus directly. Avoiding a second encode prevents failures for
-  // voice notes that were already recorded in the required format.
-  if (mimeType.split(';')[0].toLowerCase() === 'audio/ogg' && /\.ogg$/i.test(filename)) {
-    return { filePath, mimeType: 'audio/ogg', filename };
+  // Do not transcode on the server. The deployment does not require ffmpeg, and the browser or
+  // upload already gives us a playable file. Preserve the bytes and pass Meta an honest MIME
+  // type instead of failing with spawn ENOENT before the upload starts.
+  const extensionMimeTypes: Record<string, string> = {
+    '.mp3': 'audio/mpeg',
+    '.m4a': 'audio/mp4',
+    '.wav': 'audio/wav',
+    '.webm': 'audio/webm',
+    '.ogg': 'audio/ogg',
+    '.oga': 'audio/ogg',
+    '.aac': 'audio/aac',
+    '.amr': 'audio/amr',
+  };
+  const extension = path.extname(filename).toLowerCase();
+  const suppliedMimeType = mimeType.split(';')[0].toLowerCase();
+  const resolvedMimeType = suppliedMimeType.startsWith('audio/')
+    ? suppliedMimeType
+    : extensionMimeTypes[extension];
+
+  if (!resolvedMimeType || !extensionMimeTypes[extension]) {
+    throw new Error('WhatsApp could not read this audio file. Please use a playable audio file (MP3, M4A, WAV, WebM, or OGG).');
   }
-  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'whatsapp-audio-'));
-  const outputPath = path.join(tempDir, 'voice-note.ogg');
-  try {
-    await execFile('ffmpeg', [
-      '-nostdin',
-      '-y',
-      '-i', filePath,
-      '-vn',
-      '-ac', '1',
-      '-c:a', 'libopus',
-      '-b:a', '64k',
-      outputPath,
-    ], { timeout: 120_000 });
-    return { filePath: outputPath, mimeType: 'audio/ogg', filename: 'voice-note.ogg', cleanupPath: tempDir };
-  } catch (err) {
-    await fs.rm(tempDir, { recursive: true, force: true }).catch(() => {});
-    const detail = err instanceof Error ? err.message : String(err);
-    throw new Error(`WhatsApp could not read this audio file. Please use a playable audio file (MP3, M4A, WAV, WebM, or OGG). Details: ${detail}`);
-  }
+
+  return { filePath, mimeType: resolvedMimeType, filename };
 }
 
 async function prepareImageForWhatsApp(filePath: string, mimeType: string,): Promise<{ filePath: string; mimeType: string; filename: string; cleanupPath?: string }> {
