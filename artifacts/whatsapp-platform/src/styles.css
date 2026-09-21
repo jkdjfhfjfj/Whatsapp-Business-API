@@ -246,7 +246,9 @@ main { min-height: 0; flex: 1; overflow: hidden; }
 .send-btn:active { transform: scale(.92); }
 .send-btn.recording { color: #fff; background: var(--danger); }
 .composer-disabled { padding: 14px 18px; color: var(--warning); background: #fff6dc; font-size: 12px; text-align: center; }
+.composer-window-warning { padding: 8px 14px; border-bottom: 1px solid var(--border); color: var(--warning); background: #fff6dc; font-size: 11px; line-height: 1.35; }
 [data-theme='dark'] .composer-disabled { background: #493a1c; }
+[data-theme='dark'] .composer-window-warning { background: #493a1c; }
 .attachment-preview { display: flex; align-items: center; gap: 10px; padding: 10px 15px; background: var(--panel-alt); border-bottom: 1px solid var(--border); }
 .attachment-preview img, .attachment-preview video { max-height: 90px; max-width: 150px; border-radius: 9px; }
 .doc-chip { color: var(--muted); font-size: 12px; }

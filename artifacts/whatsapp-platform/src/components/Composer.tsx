@@ -204,20 +204,17 @@ export default function Composer({ conversationId, disabled, disabledReason, onS
     if (recordTimer.current) clearInterval(recordTimer.current);
   }
 
-  if (disabled) {
-    return (
-      <div className="composer composer-disabled">
-        {disabledReason ?? '24-hour customer service window has expired — send an approved template to re-open the conversation.'}
-      </div>
-    );
-  }
-
   const filteredQuickReplies = quickReplyFilter !== null
     ? quickReplies.filter((q) => q.shortcut.replace(/^\/+/, '').toLowerCase().startsWith(quickReplyFilter.toLowerCase()))
     : [];
 
   return (
     <div className="composer-wrap">
+      {disabled && (
+        <div className="composer-window-warning">
+          {disabledReason ?? 'This chat is outside Meta’s 24-hour window. Quick replies and media are ready to submit, but Meta may require an approved template before delivery.'}
+        </div>
+      )}
       {attachment && (
         <div className="attachment-preview">
           {attachment.previewUrl && attachment.kind === 'image' && <img src={attachment.previewUrl} alt="" />}
