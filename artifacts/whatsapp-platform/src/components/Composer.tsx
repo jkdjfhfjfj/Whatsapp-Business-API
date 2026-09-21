@@ -282,6 +282,14 @@ export default function Composer({ conversationId, disabled, disabledReason, onS
           <label>Body parameters <span className="field-hint">one value per line, in {'{{1}}'}, {'{{2}}'} order</span>
             <textarea rows={3} value={template.parameters} onChange={(e) => setTemplate({ ...template, parameters: e.target.value })} placeholder={'Jane Doe\nOrder 1234'} />
           </label>
+           <button
+             type="button"
+             className="primary-action"
+             onClick={sendTemplate}
+             disabled={sending || !template.name.trim()}
+           >
+             {sending ? 'Sending template…' : 'Send template'}
+           </button>
         </div>
       )}
       {attachment && (
