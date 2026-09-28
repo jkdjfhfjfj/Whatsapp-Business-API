@@ -76,7 +76,7 @@ export const api = {
   listMetaTemplates: () => request<any[]>('/api/messages/templates/meta'),
   sendTemplate: (conversationId: string, name: string, language: string, components?: Record<string, unknown>[]) =>
     request('/api/messages/template', { method: 'POST', body: JSON.stringify({ conversationId, name, language, components }) }),
-  sendButtons: (conversationId: string, message: string, buttons: { title: string; id: string }[], headerText?: string, footerText?: string) =>
+  sendButtons: (conversationId: string, message: string, buttons: { title: string; id?: string; link?: string }[], headerText?: string, footerText?: string) =>
     request('/api/messages/buttons', { method: 'POST', body: JSON.stringify({ conversationId, message, buttons, headerText, footerText }) }),
   sendList: (conversationId: string, opts: {
     headerText?: string;

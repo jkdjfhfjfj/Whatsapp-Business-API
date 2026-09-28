@@ -455,7 +455,11 @@ function QuickRepliesSettings() {
       if (messageType === 'buttons') {
         const buttons = buttonLines.split('\n').map((line) => {
           const [title, id, link] = line.split('|').map((part) => part.trim());
-          return { title, id, link };
+          return {
+            title,
+            ...(id ? { id } : {}),
+            ...(link ? { link } : {}),
+          };
         }).filter((button) => button.title && (button.id || button.link));
         if (buttons.length < 1 || buttons.length > 3) {
           toast('Add 1-3 buttons, one per line as Title | reply-id | optional-link.', 'error');

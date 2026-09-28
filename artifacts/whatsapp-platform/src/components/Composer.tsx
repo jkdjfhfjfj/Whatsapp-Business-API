@@ -167,7 +167,13 @@ export default function Composer({ conversationId, disabled, disabledReason, onS
     setSending(true);
     try {
       if (advancedType === 'buttons') {
-        const buttons = advanced.buttons.filter((button) => button.title.trim() && (button.id.trim() || button.link?.trim()));
+        const buttons = advanced.buttons
+          .filter((button) => button.title.trim() && (button.id.trim() || button.link?.trim()))
+          .map((button) => ({
+            title: button.title.trim(),
+            ...(button.id.trim() ? { id: button.id.trim() } : {}),
+            ...(button.link?.trim() ? { link: button.link.trim() } : {}),
+          }));
         if (buttons.length < 1 || buttons.length > 3) {
           toast('Add between 1 and 3 complete buttons.', 'error');
           return;
