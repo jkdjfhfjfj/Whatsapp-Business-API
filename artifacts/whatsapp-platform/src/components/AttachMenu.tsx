@@ -23,19 +23,19 @@ export default function AttachMenu({ onPick, onClose }: {
   return (
     <div className="attach-menu-backdrop" onClick={onClose}>
       <div className="attach-menu" onClick={(e) => e.stopPropagation()}>
-        <button onClick={() => imageInput.current?.click()}>
+        <button type="button" onClick={() => imageInput.current?.click()}>
           <span className="attach-icon photo"><Image size={20} /></span> Photos
         </button>
-        <button onClick={() => videoInput.current?.click()}>
+        <button type="button" onClick={() => videoInput.current?.click()}>
           <span className="attach-icon video"><Video size={20} /></span> Video
         </button>
-        <button onClick={() => docInput.current?.click()}>
+        <button type="button" onClick={() => docInput.current?.click()}>
           <span className="attach-icon document"><FileText size={20} /></span> Document
         </button>
-        <button onClick={() => audioInput.current?.click()}>
+        <button type="button" onClick={() => audioInput.current?.click()}>
           <span className="attach-icon audio"><AudioLines size={20} /></span> Audio
         </button>
-        <button onClick={() => cameraInput.current?.click()}>
+        <button type="button" onClick={() => cameraInput.current?.click()}>
           <span className="attach-icon camera"><Camera size={20} /></span> Camera
         </button>
       </div>

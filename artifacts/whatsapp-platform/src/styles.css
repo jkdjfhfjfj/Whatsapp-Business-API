@@ -258,6 +258,10 @@ main { min-height: 0; flex: 1; overflow: hidden; }
 .attachment-preview { display: flex; align-items: center; gap: 10px; padding: 10px 15px; background: var(--panel-alt); border-bottom: 1px solid var(--border); }
 .attachment-preview img, .attachment-preview video { max-height: 90px; max-width: 150px; border-radius: 9px; }
 .attachment-preview audio { width: min(230px, 45%); height: 34px; }
+.attachment-file-info { display: flex; align-items: center; gap: 7px; min-width: 0; color: var(--muted); }
+.attachment-file-info > div { display: grid; gap: 2px; min-width: 0; }
+.attachment-file-info strong { overflow: hidden; max-width: 220px; color: var(--text); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.attachment-file-info small { font-size: 10px; }
 .preview-send-btn { display: inline-flex; align-items: center; gap: 5px; margin-left: auto; padding: 8px 12px; border-radius: 9px; color: #073b29; background: var(--wa-green); font-size: 11px; font-weight: 800; white-space: nowrap; }
 .preview-send-btn:disabled { cursor: wait; opacity: .65; }
 .doc-chip { color: var(--muted); font-size: 12px; }

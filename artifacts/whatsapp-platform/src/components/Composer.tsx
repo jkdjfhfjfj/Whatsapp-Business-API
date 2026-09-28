@@ -4,7 +4,7 @@ import { api } from '../api';
 import { useToast } from '../Toast';
 import AttachMenu from './AttachMenu';
 
-type PendingAttachment = { file: File | Blob; kind: 'image' | 'document' | 'video' | 'audio'; previewUrl?: string; name: string };
+type PendingAttachment = { file: File | Blob; kind: 'image' | 'document' | 'video' | 'audio'; previewUrl?: string; name: string; sizeBytes?: number };
 type ButtonDraft = { title: string; id: string; link?: string };
 type RowDraft = { title: string; description: string; id: string };
 type AdvancedDraft = {
@@ -30,6 +30,12 @@ function formatDuration(seconds: number) {
   const m = Math.floor(seconds / 60).toString().padStart(2, '0');
   const s = Math.floor(seconds % 60).toString().padStart(2, '0');
   return `${m}:${s}`;
+}
+
+function formatFileSize(sizeBytes: number) {
+  if (sizeBytes < 1024) return `${sizeBytes} B`;
+  if (sizeBytes < 1024 * 1024) return `${Math.round(sizeBytes / 1024)} KB`;
+  return `${(sizeBytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 export default function Composer({ conversationId, disabled, disabledReason, onSent }: {
@@ -229,7 +235,7 @@ export default function Composer({ conversationId, disabled, disabledReason, onS
     const previewUrl = URL.createObjectURL(file);
     setAttachment((previous) => {
       if (previous?.previewUrl) URL.revokeObjectURL(previous.previewUrl);
-      return { file, kind, previewUrl, name: file.name };
+      return { file, kind, previewUrl, name: file.name, sizeBytes: file.size };
     });
     setShowAttachMenu(false);
   }
@@ -246,7 +252,7 @@ export default function Composer({ conversationId, disabled, disabledReason, onS
         const mimeType = recorder.mimeType || recordingType || 'audio/ogg';
         const extension = mimeType.includes('mp4') ? 'm4a' : mimeType.includes('webm') ? 'webm' : 'ogg';
         const blob = new Blob(chunks.current, { type: mimeType });
-        setAttachment({ file: blob, kind: 'audio', previewUrl: URL.createObjectURL(blob), name: `voice-note.${extension}` });
+        setAttachment({ file: blob, kind: 'audio', previewUrl: URL.createObjectURL(blob), name: `voice-note.${extension}`, sizeBytes: blob.size });
         stream.getTracks().forEach((t) => t.stop());
       };
       recorder.start();
@@ -317,8 +323,14 @@ export default function Composer({ conversationId, disabled, disabledReason, onS
           {attachment.previewUrl && attachment.kind === 'image' && <img src={attachment.previewUrl} alt="" />}
           {attachment.previewUrl && attachment.kind === 'video' && <video src={attachment.previewUrl} controls />}
            {attachment.previewUrl && attachment.kind === 'audio' && <audio src={attachment.previewUrl} controls />}
-           {attachment.kind === 'document' && <span className="doc-chip"><FileText size={15} /> {attachment.name}</span>}
-           {attachment.kind === 'audio' && <span className="doc-chip"><AudioLines size={15} /> {attachment.name}</span>}
+           <div className="attachment-file-info">
+             {attachment.kind === 'document' && <FileText size={17} />}
+             {attachment.kind === 'audio' && <AudioLines size={17} />}
+             <div>
+               <strong>{attachment.name}</strong>
+               <small>{attachment.sizeBytes ? formatFileSize(attachment.sizeBytes) : 'File'} · Ready to send</small>
+             </div>
+           </div>
            <button className="preview-send-btn" onClick={sendAttachment} disabled={sending}>
              {sending ? <span className="spinner" /> : <><Send size={15} /> Send</>}
            </button>
