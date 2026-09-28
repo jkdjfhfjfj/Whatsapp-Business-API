@@ -59,6 +59,11 @@ export default function Composer({ conversationId, disabled, disabledReason, onS
 
   useEffect(() => { api.listQuickReplies().then(setQuickReplies).catch(() => {}); }, []);
   useEffect(() => {
+    return () => {
+      if (attachment?.previewUrl) URL.revokeObjectURL(attachment.previewUrl);
+    };
+  }, [attachment?.previewUrl]);
+  useEffect(() => {
     // Reset the composer whenever the conversation changes so drafts don't leak between chats.
     setText(''); setAttachment(null); setShowAttachMenu(false); setQuickReplyFilter(null); setQuickReplyPickerOpen(false); setAdvancedType(null); setAdvanced(emptyAdvancedDraft); setTemplateOpen(false); setTemplate({ name: '', language: 'en_US', parameters: '' });
   }, [conversationId]);
@@ -221,8 +226,12 @@ export default function Composer({ conversationId, disabled, disabledReason, onS
   }
 
   function onPickFile(file: File, kind: 'image' | 'document' | 'video' | 'audio') {
-    const previewUrl = kind === 'image' || kind === 'video' ? URL.createObjectURL(file) : undefined;
-    setAttachment({ file, kind, previewUrl, name: file.name });
+    const previewUrl = URL.createObjectURL(file);
+    setAttachment((previous) => {
+      if (previous?.previewUrl) URL.revokeObjectURL(previous.previewUrl);
+      return { file, kind, previewUrl, name: file.name };
+    });
+    setShowAttachMenu(false);
   }
 
   async function startRecording() {
@@ -237,7 +246,7 @@ export default function Composer({ conversationId, disabled, disabledReason, onS
         const mimeType = recorder.mimeType || recordingType || 'audio/ogg';
         const extension = mimeType.includes('mp4') ? 'm4a' : mimeType.includes('webm') ? 'webm' : 'ogg';
         const blob = new Blob(chunks.current, { type: mimeType });
-        setAttachment({ file: blob, kind: 'audio', name: `voice-note.${extension}` });
+        setAttachment({ file: blob, kind: 'audio', previewUrl: URL.createObjectURL(blob), name: `voice-note.${extension}` });
         stream.getTracks().forEach((t) => t.stop());
       };
       recorder.start();
@@ -307,8 +316,12 @@ export default function Composer({ conversationId, disabled, disabledReason, onS
         <div className="attachment-preview">
           {attachment.previewUrl && attachment.kind === 'image' && <img src={attachment.previewUrl} alt="" />}
           {attachment.previewUrl && attachment.kind === 'video' && <video src={attachment.previewUrl} controls />}
+           {attachment.previewUrl && attachment.kind === 'audio' && <audio src={attachment.previewUrl} controls />}
            {attachment.kind === 'document' && <span className="doc-chip"><FileText size={15} /> {attachment.name}</span>}
-           {attachment.kind === 'audio' && <span className="doc-chip"><AudioLines size={15} /> Voice note ready to send</span>}
+           {attachment.kind === 'audio' && <span className="doc-chip"><AudioLines size={15} /> {attachment.name}</span>}
+           <button className="preview-send-btn" onClick={sendAttachment} disabled={sending}>
+             {sending ? <span className="spinner" /> : <><Send size={15} /> Send</>}
+           </button>
           <button className="icon-btn" onClick={() => setAttachment(null)} aria-label="Remove attachment"><X size={18} /></button>
         </div>
       )}

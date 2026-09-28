@@ -257,6 +257,9 @@ main { min-height: 0; flex: 1; overflow: hidden; }
 [data-theme='dark'] .composer-window-warning { background: #493a1c; }
 .attachment-preview { display: flex; align-items: center; gap: 10px; padding: 10px 15px; background: var(--panel-alt); border-bottom: 1px solid var(--border); }
 .attachment-preview img, .attachment-preview video { max-height: 90px; max-width: 150px; border-radius: 9px; }
+.attachment-preview audio { width: min(230px, 45%); height: 34px; }
+.preview-send-btn { display: inline-flex; align-items: center; gap: 5px; margin-left: auto; padding: 8px 12px; border-radius: 9px; color: #073b29; background: var(--wa-green); font-size: 11px; font-weight: 800; white-space: nowrap; }
+.preview-send-btn:disabled { cursor: wait; opacity: .65; }
 .doc-chip { color: var(--muted); font-size: 12px; }
 .recording-bar { display: flex; align-items: center; gap: 9px; padding: 10px 15px; color: var(--danger); background: #fff0f1; font-size: 12px; font-weight: 800; }
 [data-theme='dark'] .recording-bar { background: #442328; }
