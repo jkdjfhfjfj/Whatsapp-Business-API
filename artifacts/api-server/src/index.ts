@@ -28,6 +28,7 @@ import { agentsRouter } from './routes/agents.js';
 import { dashboardRouter } from './routes/dashboard.js';
 import { initWebSocketServer } from './services/websocket.js';
 import { ensureDefaultTenant } from './services/defaultTenant.js';
+import { runAutoMigrations } from './db/autoMigrate.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -136,6 +137,9 @@ app.use((err: any, req: express.Request, res: express.Response, _next: express.N
 const port = Number(process.env.PORT ?? 4000);
 const server = http.createServer(app);
 initWebSocketServer(server);
+
+// Apply small additive compatibility migrations before any startup query uses the current schema.
+await runAutoMigrations();
 
 // Auth is removed, so there's no signup flow to create the first business/user anymore — this
 // creates (or finds) the single default tenant every request gets attached to, once, before the
