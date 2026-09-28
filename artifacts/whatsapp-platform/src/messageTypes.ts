@@ -4,6 +4,7 @@ export type MediaMessageType = typeof MEDIA_TYPES[number];
 
 export function normalizedMessageType(message: any): string {
   const rawType = message?.type;
+  const interactive = message?.content?.interactive ?? message?.content?.body?.interactive;
 
   if (rawType === 'text_message' || rawType === 'ad_message' || rawType === 'text') return 'text';
   if (rawType === 'audio_message') return 'audio';
@@ -13,6 +14,12 @@ export function normalizedMessageType(message: any): string {
   if (rawType === 'quick_reply_message' || rawType === 'simple_button_message') return 'button';
   if (rawType === 'radio_button_message') return 'list';
   if (rawType === 'template_message' || rawType === 'message_template' || rawType === 'template') return 'template';
+  if (rawType === 'interactive_buttons' || rawType === 'interactive_button_message') return 'interactive_buttons';
+  if (rawType === 'interactive_list' || rawType === 'interactive_list_message') return 'interactive_list';
+  if (rawType === 'interactive') {
+    if (interactive?.type === 'button' || interactive?.type === 'cta_url') return 'interactive_buttons';
+    if (interactive?.type === 'list') return 'interactive_list';
+  }
 
   if (rawType === 'media_message') {
     const mediaType = MEDIA_TYPES.find((kind) => mediaContent(message, kind));

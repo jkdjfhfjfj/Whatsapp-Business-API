@@ -4,6 +4,17 @@ import Avatar from './Avatar';
 import MediaBubble from './MediaBubble';
 import { messageText, normalizedMessageType } from '../messageTypes';
 
+function interactiveContent(msg: any) {
+  return msg.content?.interactive ?? msg.content?.body?.interactive ?? msg.content ?? {};
+}
+
+function listRows(content: any) {
+  const sections = content.listOfSections ?? content.sections ?? content.action?.sections ?? [];
+  return Array.isArray(sections)
+    ? sections.flatMap((section: any) => Array.isArray(section?.rows) ? section.rows : [])
+    : [];
+}
+
 function renderContent(msg: any) {
   const type = normalizedMessageType(msg);
 
@@ -14,29 +25,38 @@ function renderContent(msg: any) {
     case 'list': // inbound: customer picked a list option
       return <p className="reply-echo">↳ {msg.content.title ?? msg.content.id}</p>;
     case 'interactive_buttons': // outbound: we sent a button prompt
-      return (
-        <div>
-          {msg.content.headerText && <strong className="interactive-header">{msg.content.headerText}</strong>}
-          <p>{msg.content.message}</p>
-          <div className="sent-options">
-            {msg.content.buttons?.map((b: any) => <span key={b.id} className="option-chip">{b.title}</span>)}
+      {
+        const content = interactiveContent(msg);
+        const buttons = content.buttons ?? content.action?.buttons?.map((button: any) => button.reply ?? button);
+        return (
+          <div>
+            {content.headerText && <strong className="interactive-header">{content.headerText}</strong>}
+            {content.header?.text && <strong className="interactive-header">{content.header.text}</strong>}
+            <p>{content.message ?? content.bodyText ?? content.body?.text}</p>
+            <div className="sent-options">
+              {buttons?.map((b: any, index: number) => <span key={b.id ?? b.title ?? index} className="option-chip">{b.title}</span>)}
+            </div>
+            {(content.footerText ?? content.footer?.text) && <small className="interactive-footer">{content.footerText ?? content.footer.text}</small>}
           </div>
-          {msg.content.footerText && <small className="interactive-footer">{msg.content.footerText}</small>}
-        </div>
-      );
+        );
+      }
     case 'interactive_list': // outbound: we sent a list prompt
-      return (
-        <div>
-          {msg.content.headerText && <strong className="interactive-header">{msg.content.headerText}</strong>}
-          <p>{msg.content.bodyText}</p>
-          <div className="sent-options">
-            {msg.content.listOfSections?.flatMap((s: any) => s.rows).map((r: any) => (
-              <span key={r.id} className="option-chip">{r.title}</span>
-            ))}
+      {
+        const content = interactiveContent(msg);
+        const rows = listRows(content);
+        return (
+          <div>
+            {content.headerText && <strong className="interactive-header">{content.headerText}</strong>}
+            {content.header?.text && <strong className="interactive-header">{content.header.text}</strong>}
+            <p>{content.bodyText ?? content.body?.text}</p>
+            {content.actionTitle && <small className="interactive-footer">{content.actionTitle}</small>}
+            <div className="sent-options">
+              {rows.map((row: any, index: number) => <span key={row.id ?? row.title ?? index} className="option-chip">{row.title}</span>)}
+            </div>
+            {(content.footerText ?? content.footer?.text) && <small className="interactive-footer">{content.footerText ?? content.footer.text}</small>}
           </div>
-          {msg.content.footerText && <small className="interactive-footer">{msg.content.footerText}</small>}
-        </div>
-      );
+        );
+      }
     case 'template':
       const template = msg.content?.template ?? msg.content?.body?.template ?? msg.content ?? {};
       return (
