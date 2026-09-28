@@ -63,10 +63,10 @@ _Populate as you build — explicit user instructions worth remembering across s
 
 ## Render setup
 
-1. Create a Render Blueprint from this repository so `render.yaml` creates the web service and its
-   persistent media disk.
-2. Set `DATABASE_URL`, a long random `SESSION_SECRET`, and `WHATSAPP_VERIFY_TOKEN` in the Render
-   service environment. Keep `MEDIA_STORAGE_DIR=/var/data/media`.
+1. Create a Render Blueprint from this repository so `render.yaml` creates the web service.
+2. Set `DATABASE_URL`, a long random `SESSION_SECRET`, `WHATSAPP_VERIFY_TOKEN`, and the Cloudinary
+   variables (`CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, and `CLOUDINARY_API_SECRET`) in the
+   Render service environment. `STORAGE_PROVIDER=cloudinary` is already configured.
 3. Deploy and wait for `GET /health` to report a connected database.
 4. Open the published app's Settings → WhatsApp and save the Meta App ID, permanent access token,
    WABA ID, phone number ID, and API version. `v20.0` is the default.
@@ -87,8 +87,8 @@ Render environment variables can also configure Cloudinary without the Settings 
 `CLOUDINARY_API_SECRET`. Database settings take precedence when configured.
 
 The Render service serves the built frontend and API from one process. The required public paths are
-`/api`, `/webhook`, `/ws`, and `/health`. The persistent disk prevents uploaded and downloaded media
-from disappearing on deploys or restarts.
+`/api`, `/webhook`, `/ws`, and `/health`. Cloudinary prevents uploaded and downloaded media from
+disappearing on deploys or restarts.
 
 ## Pointers
 

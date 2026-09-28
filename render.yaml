@@ -18,9 +18,11 @@ services:
         sync: false
       - key: DEFAULT_BUSINESS_NAME
         value: WhatsApp Support
-      - key: MEDIA_STORAGE_DIR
-        value: /var/data/media
-    disk:
-      name: whatsapp-media
-      mountPath: /var/data
-      sizeGB: 1
+      - key: STORAGE_PROVIDER
+        value: cloudinary
+      - key: CLOUDINARY_CLOUD_NAME
+        sync: false
+      - key: CLOUDINARY_API_KEY
+        sync: false
+      - key: CLOUDINARY_API_SECRET
+        sync: false
