@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
-import { Search } from 'lucide-react';
+import { MessageCirclePlus, Search, X } from 'lucide-react';
 import { api } from '../api';
 import { useRealtime } from '../useRealtime';
 import { useToast } from '../Toast';
@@ -21,6 +21,9 @@ export default function Inbox({ businessId }: { businessId: string }) {
   const [rightTab, setRightTab] = useState<'info' | 'notes'>('info');
   const [mobileView, setMobileView] = useState<'list' | 'chat' | 'details'>('list');
   const [updatingField, setUpdatingField] = useState<'status' | 'assign' | 'ai' | null>(null);
+  const [newChatOpen, setNewChatOpen] = useState(false);
+  const [newChatPhone, setNewChatPhone] = useState('');
+  const [startingChat, setStartingChat] = useState(false);
 
   const refreshList = useCallback(() => {
     api.listConversations({ status: filter || undefined, search: search || undefined })
@@ -65,6 +68,24 @@ export default function Inbox({ businessId }: { businessId: string }) {
       return;
     }
     setSelectedId(id);
+  }
+
+  async function startConversation(event: React.FormEvent) {
+    event.preventDefault();
+    if (!newChatPhone.trim() || startingChat) return;
+    setStartingChat(true);
+    try {
+      const result = await api.startConversation(newChatPhone);
+      setNewChatPhone('');
+      setNewChatOpen(false);
+      await refreshList();
+      selectConversation(result.conversation.id);
+      toast('Chat ready. You can now send a message.', 'success');
+    } catch (err) {
+      toast((err as Error).message, 'error');
+    } finally {
+      setStartingChat(false);
+    }
   }
 
   // Every mutation below follows the same shape: a small loading flag, a success toast, and —
@@ -128,7 +149,33 @@ export default function Inbox({ businessId }: { businessId: string }) {
         <div className="search-row">
           <Search size={16} />
           <input placeholder="Search chats…" value={search} onChange={(e) => setSearch(e.target.value)} />
+          <button
+            type="button"
+            className={`icon-btn ${newChatOpen ? 'active' : ''}`}
+            onClick={() => setNewChatOpen((open) => !open)}
+            aria-label="Start a new chat"
+            title="Start a new chat"
+          >
+            {newChatOpen ? <X size={17} /> : <MessageCirclePlus size={17} />}
+          </button>
         </div>
+        {newChatOpen && (
+          <form className="new-chat-panel" onSubmit={startConversation}>
+            <label>WhatsApp number
+              <input
+                autoFocus
+                value={newChatPhone}
+                onChange={(e) => setNewChatPhone(e.target.value)}
+                placeholder="+254 712 345 678"
+                inputMode="tel"
+              />
+            </label>
+            <span className="field-hint">Include the country code. Spaces, +, and hyphens are accepted.</span>
+            <button type="submit" disabled={startingChat || !newChatPhone.trim()}>
+              {startingChat ? 'Opening chat…' : 'Open chat'}
+            </button>
+          </form>
+        )}
         <div className="filter-row">
           {['', 'open', 'pending', 'resolved', 'archived'].map((f) => (
             <button key={f} className={filter === f ? 'active' : ''} onClick={() => setFilter(f)}>{f || 'All'}</button>

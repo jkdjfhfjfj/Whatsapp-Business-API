@@ -1,9 +1,11 @@
 import { Router } from 'express';
+import { z } from 'zod';
 import { db } from '../db/client.js';
 import { conversations, contacts, messages, tags, conversationTags } from '../db/schema.js';
 import { eq, and, desc, ilike, or, sql } from 'drizzle-orm';
 import { requireAuth } from '../auth/middleware.js';
 import { getWhatsAppClientForBusiness } from '../services/getWhatsAppClient.js';
+import { normalizePhone } from '../services/whatsapp.js';
 
 export const conversationsRouter = Router();
 conversationsRouter.use(requireAuth);
@@ -36,6 +38,57 @@ conversationsRouter.get('/', async (req, res) => {
     .orderBy(desc(conversations.updatedAt));
 
   res.json(rows);
+});
+
+const startConversationSchema = z.object({
+  phone: z.string().trim().min(7).max(32),
+});
+
+conversationsRouter.post('/start', async (req, res) => {
+  const parsed = startConversationSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: 'Enter an international WhatsApp number.' });
+
+  const waId = normalizePhone(parsed.data.phone);
+  if (waId.length < 7 || waId.length > 15) {
+    return res.status(400).json({ error: 'Enter a valid international WhatsApp number, including the country code.' });
+  }
+
+  const businessId = req.tenant!.businessId;
+  const result = await db.transaction(async (tx) => {
+    let [contact] = await tx
+      .select()
+      .from(contacts)
+      .where(and(eq(contacts.businessId, businessId), eq(contacts.waId, waId)))
+      .limit(1);
+
+    if (!contact) {
+      [contact] = await tx.insert(contacts).values({ businessId, waId }).returning();
+    }
+
+    let [conversation] = await tx
+      .select()
+      .from(conversations)
+      .where(and(eq(conversations.businessId, businessId), eq(conversations.contactId, contact.id)))
+      .orderBy(desc(conversations.updatedAt))
+      .limit(1);
+
+    if (conversation) {
+      [conversation] = await tx
+        .update(conversations)
+        .set({ status: 'open', updatedAt: new Date() })
+        .where(eq(conversations.id, conversation.id))
+        .returning();
+    } else {
+      [conversation] = await tx
+        .insert(conversations)
+        .values({ businessId, contactId: contact.id, status: 'open' })
+        .returning();
+    }
+
+    return { conversation, contact };
+  });
+
+  res.json(result);
 });
 
 conversationsRouter.get('/:id', async (req, res) => {

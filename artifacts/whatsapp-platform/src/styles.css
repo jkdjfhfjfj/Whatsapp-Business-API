@@ -182,6 +182,12 @@ main { min-height: 0; flex: 1; overflow: hidden; }
 .search-row { display: flex; align-items: center; gap: 9px; margin: 16px 16px 12px; padding: 0 13px; height: 42px; border: 1px solid var(--border); border-radius: 12px; color: var(--muted); background: var(--panel-alt); }
 .search-row input { border: 0; padding: 0; background: transparent; }
 .search-row input:focus { box-shadow: none; }
+.search-row .icon-btn { flex: 0 0 auto; margin-left: auto; }
+.new-chat-panel { display: grid; gap: 8px; margin: 0 16px 13px; padding: 12px; border: 1px solid var(--border); border-radius: 12px; background: var(--panel-alt); }
+.new-chat-panel label { gap: 5px; margin: 0; font-size: 10px; }
+.new-chat-panel input { padding: 9px 10px; font-size: 12px; }
+.new-chat-panel button { min-height: 34px; border-radius: 9px; color: #073b29; background: var(--wa-green); font-size: 11px; font-weight: 800; }
+.new-chat-panel button:disabled { cursor: not-allowed; opacity: .55; }
 .filter-row { display: flex; gap: 6px; overflow-x: auto; padding: 0 16px 13px; scrollbar-width: none; }
 .filter-row button { padding: 7px 11px; border-radius: 20px; white-space: nowrap; color: var(--muted); background: var(--panel-alt); font-size: 11px; font-weight: 800; }
 .filter-row button.active { color: #073b29; background: var(--wa-green); }

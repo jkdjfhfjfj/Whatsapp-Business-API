@@ -61,6 +61,11 @@ export const api = {
     const qs = params.toString();
     return request<any[]>(`/api/conversations${qs ? `?${qs}` : ''}`);
   },
+  startConversation: (phone: string) =>
+    request<{ conversation: any; contact: any }>('/api/conversations/start', {
+      method: 'POST',
+      body: JSON.stringify({ phone }),
+    }),
   getConversation: (id: string) => request<any>(`/api/conversations/${id}`),
   markConversationRead: (id: string) => request(`/api/conversations/${id}/read`, { method: 'POST' }),
   updateConversation: (id: string, body: Record<string, unknown>) =>
