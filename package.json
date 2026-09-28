@@ -2,11 +2,14 @@
   "name": "workspace",
   "version": "0.0.0",
   "license": "MIT",
+  "packageManager": "pnpm@10.26.1",
   "scripts": {
     "preinstall": "sh -c 'rm -f package-lock.json yarn.lock; case \"$npm_config_user_agent\" in pnpm/*) ;; *) echo \"Use pnpm instead\" >&2; exit 1 ;; esac'",
-    "build": "pnpm run typecheck && pnpm -r --if-present run build",
-    "render:build": "PORT=19852 BASE_PATH=/ pnpm --filter @workspace/whatsapp-platform run build && rm -rf artifacts/api-server/public && cp -R artifacts/whatsapp-platform/dist/public artifacts/api-server/public && pnpm --filter @workspace/api-server run build",
-    "render:start": "node --enable-source-maps artifacts/api-server/dist/index.mjs",
+    "build": "corepack pnpm install --frozen-lockfile && corepack pnpm run render:build",
+    "push:db": "corepack pnpm --filter @workspace/api-server run db:push",
+    "start": "node --enable-source-maps artifacts/api-server/dist/index.mjs",
+    "render:build": "PORT=19852 BASE_PATH=/ corepack pnpm --filter @workspace/whatsapp-platform run build && rm -rf artifacts/api-server/public && cp -R artifacts/whatsapp-platform/dist/public artifacts/api-server/public && corepack pnpm --filter @workspace/api-server run build",
+    "render:start": "npm start",
     "typecheck:libs": "tsc --build",
     "typecheck": "pnpm run typecheck:libs && pnpm -r --filter \"./artifacts/**\" --filter \"./scripts\" --if-present run typecheck"
   },
